@@ -1,0 +1,75 @@
+#! /usr/bin/env bash
+
+## code adapted from https://www.biostars.org/p/92935/
+set -ue
+
+#set variables
+projdir="/scratch/projects/fieberlab/ANV"
+project="fieberlab"
+targetdir="${projdir}/AplCal3.0_STAR"
+SraAccList=$1
+
+#load samtools
+module load samtools/1.3
+
+# Get the bam file from the command line
+samples=`cat ${SraAccList}`
+
+experiment=`basename "${SraAccList}" | sed 's/.*\(SRP[0-9]*\)\.txt/\1/g'`
+
+printf "sample\ttotal\tforward\treverse\n" > ${projdir}/alignment_stats/${experiment}_host_GAPDH_read_orientations.txt
+
+#go to alignment dir
+cd "${targetdir}"
+
+#execute for all sampels
+for samp in ${samples}
+do
+
+echo "processing ${samp}..."
+
+# Forward strand.
+#
+# 1. alignments of the second in pair if they map to the forward strand
+# 2. alignments of the first in pair if they map to the reverse  strand
+#
+samtools view -b -f 128 -F 16 ${samp}_host_Aligned_GAPDH.bam > ${samp}_fwd1.bam
+samtools index ${samp}_fwd1.bam
+
+samtools view -b -f 80 ${samp}_host_Aligned_GAPDH.bam > ${samp}_fwd2.bam
+samtools index ${samp}_fwd2.bam
+
+#
+# Combine alignments that originate on the forward strand.
+#
+samtools merge -f ${samp}_fwd.bam ${samp}_fwd1.bam ${samp}_fwd2.bam
+samtools index ${samp}_fwd.bam
+
+# Reverse strand
+#
+# 1. alignments of the second in pair if they map to the reverse strand
+# 2. alignments of the first in pair if they map to the forward strand
+#
+samtools view -b -f 144 ${samp}_host_Aligned_GAPDH.bam > ${samp}_rev1.bam
+samtools index ${samp}_rev1.bam
+
+samtools view -b -f 64 -F 16 ${samp}_host_Aligned_GAPDH.bam > ${samp}_rev2.bam
+samtools index ${samp}_rev2.bam
+
+#
+# Combine alignments that originate on the reverse strand.
+#
+samtools merge -f ${samp}_rev.bam ${samp}_rev1.bam ${samp}_rev2.bam
+samtools index ${samp}_rev.bam
+
+total=`samtools view -c -F 260 ${samp}_host_Aligned_GAPDH.bam`
+fwd=`samtools view -c -F 260 ${samp}_fwd.bam`
+rev=`samtools view -c -F 260 ${samp}_rev.bam`
+
+printf "${samp}\t${total}\t${fwd}\t${rev}\n" >> ${projdir}/alignment_stats/${experiment}_host_GAPDH_read_orientations.txt
+
+rm ${samp}_fwd* ${samp}_rev*
+
+done
+
+echo "all done!"

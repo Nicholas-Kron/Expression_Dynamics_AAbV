@@ -1,0 +1,15 @@
+# Modification of viral genome regions for Aplysia Abyssovirus 1 for
+# find_trs_sites.py from VirORF package: https://github.com/jnoms/virORF_direct
+
+
+#------------------------------------------------------------------------------#
+# Constants
+#------------------------------------------------------------------------------#
+positions = {
+    "Pseudoknot_internal": (17565,17697),
+    "5'UTR_internal":(1,109),
+    "3'UTR_internal": (34960,35948),
+    "ORF2_internal":(25924,34962),
+    "ORF1b_internal": (17564,25240),
+    "ORF1a_internal": (110,17563)
+}

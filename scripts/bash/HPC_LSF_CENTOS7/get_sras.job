@@ -1,0 +1,20 @@
+#! /usr/bin/env bash
+#BSUB -P fieberlab
+#BSUB -J SRA_download
+#BSUB -e SRA_download.err
+#BSUB -o SRA_download.out
+#BSUB -W 48:00
+#BSUB -n 8
+#BSUB -q general
+
+cd "/scratch/projects/fieberlab/ANV/raw_reads"
+
+for samp in `cat /scratch/projects/fieberlab/ANV/SRA_by_study/Sra_list_Paired_SRP268155.txt`
+do
+fasterq-dump --threads 8 --progress ${samp}
+
+[ -f ${samp}.fastq ] && (echo \"succesfully downloaded SE read file of ${samp}, compressing with gzip...\" && gzip ${samp}.fastq )
+[ -f ${samp}_1.fastq ] && (echo \"succesfully downloaded ${samp} 1, compressing with gzip...\" && gzip ${samp}_1.fastq )
+[ -f ${samp}_2.fastq ] && (echo \"succesfully downloaded ${samp} 2, compressing with gzip...\" && gzip ${samp}_2.fastq )
+
+done

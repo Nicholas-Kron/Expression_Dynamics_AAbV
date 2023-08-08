@@ -1,0 +1,9 @@
+Tissue	Tissue_Name
+A	Abdominal Ganglion
+G	Head Ganglia
+T	Anterior Tentacle
+L	Gill
+H	Heart
+I	I-4 Muscle
+O	Ovotestis
+U	Gut

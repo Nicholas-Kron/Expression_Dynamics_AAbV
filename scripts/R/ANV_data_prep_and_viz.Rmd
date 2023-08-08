@@ -1,0 +1,2522 @@
+---
+title: "ANV_coverage"
+author: "Nicholas Kron"
+date: "6/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages and define functions
+### load data wrangling and dataviz packages
+```{r load packages, echo=FALSE, warning=FALSE,message=FALSE, error=FALSE}
+
+library(zoo)
+library(gridExtra)
+library(tibble)
+library(tidyverse)
+library(patchwork)
+
+
+```
+
+```{r extract sequence function , echo=FALSE, warning=FALSE,message=FALSE, error=FALSE}
+
+extract_seq <- function(position,
+                        window,
+                        fasta = "../../data/modified_ANV_genome.fasta"){
+  #QC on input file
+  if(! read_lines(file = fasta, n_max = 1) %>% str_detect(., ">") ){
+    stop("properly fomrated fasta header not found, aborting...")
+  }
+  
+    if(read_lines(file = fasta, n_max = 1) %>% str_count(., ">") > 1 ){
+    stop("Please provide one sequence per fasta. Multifasta not supported yet. exiting...")
+  }
+  # read in fasta
+  header = read_lines(file = fasta, n_max = 1)
+  sequence = paste(read_lines(file = fasta, skip = 1), sep="", collapse="")
+  substr(sequence, start = position-window, position + window)
+  
+}
+
+
+```
+
+### plotting templates
+here we define basic plotting elements to reuse in subsequent figures. These include the regions of viral proteins as well as a schematic of the viral genome. 
+```{r plotting elements to use in figures , echo=FALSE, warning=FALSE,message=FALSE, error=FALSE}
+  #Plotting
+
+  #Define plotting regions for structural proteins
+  # data for subgenomics regions
+  structural_proteins <- data.frame(
+  name = c(
+    "Trypsin-like_serine_protease",
+    "S-like_protein",
+    "Alphavirus_E1-like_protein",
+    "Alphavirus_E2-like_protein",
+    "N-like_protein",
+    "M-like_protein"
+  ),
+  code = c("T", "S", "E1", "E2","N", "M"),
+  start = c(25958,27692,30380,31931,33839,33485),
+  stop = c(27226,30103,31684,33094,34909,33709),
+  ymin = rep(0,6),
+  ymax = rep(Inf,6),
+  colors = c("green","cyan","yellow","goldenrod","magenta","olivedrab")
+)
+
+
+  #genome ORF plot
+  {
+    
+      ORFs <- data.frame(
+    name = c("ORF1a","ORF1b","ORF2","UTR"),
+    start = c(110,17564,25294,34960),
+    stop = c(17563,25240,34962,35948)
+  )
+      
+      TRS_sites <- data.frame(
+  start = c(6,25220),
+  stop = c(27,25239),
+  label = c("TRS-L", "TRS-B")
+)
+  #TRS-l
+#6-27 ACTTTATAAAAAATTTGTTAG
+#TRS-B
+#25220-25239 ACTTTTGAAAAAATCTTAG
+  
+    
+  #ann <- ggplot(data = dats, aes(x = position, y = count)) + 
+    ann <- ggplot(data.frame(x = c(0,35946), y = c(0,0)), aes(x = x, y = y )) +
+      geom_rect(
+      data = ORFs,
+      aes(
+      ymin = rep(0, nrow(ORFs) ),
+      ymax = rep(1, nrow(ORFs) ),
+      xmin = start,
+      xmax = stop
+    ),
+      fill = "white",
+      color = "black",
+    inherit.aes = FALSE)  +
+    #ORF labels
+    annotate(
+      "text",
+      x = (ORFs$stop + ORFs$start) / 2,
+      y = rep(0.5, nrow(ORFs)),
+      label = ORFs$name,
+      angle = c(0,0,0,90),
+      size = c(4,4,4,3)
+    ) +
+    annotate(
+      "text",
+      x = 36000,
+      y = 0.5,
+      label = "An",
+      hjust = 0
+    ) +
+  theme_void() +
+  coord_cartesian(ylim = c(0, 1)) +
+      theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+  }
+    
+
+```
+
+```{r basic AabV genome fig, echo=FALSE, message=FALSE, error=FALSE}
+
+regions <- read.delim("../../data/annotation_data/modified_ANV_genome.bed", sep = "\t", header = FALSE, col.names = c("contig", "start", "stop", "region"))
+
+##fix region numbers
+min = 0.2
+max = 0.5
+    ggplot(data = data.frame(x = c(1,35000), y = c(1,1))) +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =1, xmax = 110, fill = "white", color = "black") +
+    geom_rect( ymin = max + 0.05, ymax = max + 0.1, xmin =0, xmax = 35948, fill = "grey75") +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =110, xmax = 17563, fill = "white", color = "black") +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =17564,xmax = 25240, fill = "white", color = "black") +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =25294,xmax = 34962, fill = "white", color = "black") +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =34960,xmax = 35990, fill = "white", color = "black") +
+    geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =35882,xmax = 35882, fill = "white", color = "black") +
+    annotate("text", x = (1+110)/2, y = max + 0.25, label = "5' UTR") +
+    annotate("text", x = (17563+110)/2, y = max + 0.15, label = "ORF1a") +
+    annotate("text", x = (17564+25240)/2, y = max + 0.15, label = "ORF1b") +
+    annotate("text", x = (25294+34962)/2, y = max + 0.15, label = "ORF2") +
+    annotate("text", x = (34960+35948)/2, y = max + 0.25, label = "3' UTR") +
+    annotate("text", x = 35882, y = max + 0.15, label = "An", hjust = 0) +
+    geom_vline(xintercept = 25294, color = "red", linetype = "longdash") +
+  coord_cartesian(ylim = c(min, max+1)) +
+    theme_classic()
+
+
+```
+
+## Load public metadata and filter
+### load publically available metadata and explore
+```{r load metadata, echo=FALSE, message=FALSE, error=FALSE}
+
+meta <- read.csv("../../data/annotation_data/sample_annot.csv") %>%
+  select(Run, SRAStudy, BioProject,Sample,BioSample,Submission,
+         LibraryStrategy, LibrarySelection, LibraryLayout,  
+         organ, organ_subtype, sample_type, sample_subtype, tissue_name, neurotransmitter)
+
+meta %>% summarise(
+      Run = length(unique(Run)),
+      SRAStudy = length(unique(SRAStudy))
+              )
+
+
+meta %>%
+  filter(tissue_name != "" & organ == "nervous system" ) %>%
+  summarise(
+      Run = length(unique(Run)),
+      SRAStudy = length(unique(SRAStudy)),
+      Ganglia = length(unique(organ_subtype)),
+      tissue_name = length(unique(tissue_name))
+              )
+
+meta %>%
+  filter(tissue_name != "" & organ == "nervous system" ) %>%
+  select(
+      tissue_name
+              ) %>% unique()
+
+
+
+
+meta %>%
+  ggplot(data =., aes(x = organ, fill = LibraryLayout)) + geom_histogram(stat = "count") + 
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15))
+
+meta %>%
+  ggplot(data =., aes(x = LibraryStrategy, fill = LibrarySelection)) + geom_histogram(stat = "count") + 
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15))
+
+meta %>%
+  filter(organ == "nervous system") %>%
+  ggplot(data =., aes(x = organ_subtype, fill = tissue_name)) + geom_histogram(stat = "count") + 
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15))
+
+meta %>%
+  filter(organ == "nervous system") %>%
+  ggplot(data =., aes(x = tissue_name)) + geom_histogram(stat = "count") + 
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15))
+
+```
+### load and incorporate metrics from read processing and alignment software
+
+#### process paired end read stats and combine
+```{r process paired end processing metrics, echo=FALSE, message=FALSE, error=FALSE}
+
+PE <- meta %>% filter(LibraryLayout == "PAIRED") %>% select(Run) %>% unique()
+PE_processing_stats <- lapply(PE$Run %>% unique(), FUN = function(x) {
+  
+  ##BBDUK logs
+bbduk <- read.delim(paste0("../../data/logs/BBDUK_logs/", x, "_bbduk.err"), sep = "", skip = 16, header = FALSE) %>%
+  filter(V1 %in% c("Input:", "Result:")) %>%
+  mutate(V1 = str_remove(V1, ":")) %>%
+  select(V1,V2) %>%
+  column_to_rownames("V1") %>% t() %>%
+  as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(bbduk) <- c("Sample", "BBDuk_Input", "BBDuk_Output")
+
+##SICKEL logs
+sickle <- read.delim(paste0("../../data/logs/sickle_logs/", x, "_pe_sickle.out"), sep = "", skip = 3, header = FALSE) %>% select(V4, V5) %>% top_n(.,2) %>%
+  mutate(V4 = str_remove(V4, ":")) %>%
+  column_to_rownames("V4") %>% t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(sickle) <- c("Sample", "sickle_Input", "sickle_Output")
+sickle <- sickle %>% mutate(sickle_Output_pairs = sickle_Output/2)
+
+##STAR logs
+STAR <- read.delim(paste0("../../data/logs/STAR_logs/", x, "_Log.final.out"), sep = "|", skip = 3, header = FALSE, strip.white = TRUE) %>%
+  filter(V1 %in% c("Number of input reads",
+                   "Uniquely mapped reads number",
+                   "Number of reads mapped to multiple loci",
+                   "Number of reads mapped to too many loci"
+                   #"Number of reads unmapped: too short",
+                   #"Number of reads unmapped: other"
+                   )) %>%
+  column_to_rownames("V1") %>%
+  t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(STAR) <- c("Sample","STAR_Input", "STAR_Uniquely_Mapped", 
+                     "STAR_Multi_Mapped","STAR_Too_Many"#, "STAR_Unmapped_Short",
+                     #"STAR_Unmapped_Other"
+                    )
+full_join(bbduk,sickle) %>% full_join(., STAR)
+
+}
+) %>% do.call("rbind",.) %>% column_to_rownames("Sample") %>%
+  mutate_if(is.character, as.numeric) %>% 
+  rownames_to_column("Sample") %>% select(Sample, everything()) %>%
+  mutate(Pct_virus = round(100 * (STAR_Uniquely_Mapped + STAR_Multi_Mapped + STAR_Too_Many)/(STAR_Input),2) )
+
+```
+
+#### process single end reads stats and combine
+```{r process single end processing metrics, echo=FALSE, message=FALSE, error=FALSE}
+
+SE <- meta %>% filter(LibraryLayout == "SINGLE") %>% select(Run) %>% unique()
+## eliminate problematic samples without processing stats
+SE <- SE %>% filter(! Run %in% c("SRR027169", "SRR027053", "SRR027057", "SRR027059") )
+
+##combine stats from all SE samples
+SE_processing_stats <- lapply(SE$Run, FUN = function(x) {
+  ##BBDUK
+bbduk <- read.delim(paste0("../../data/logs/BBDUK_logs/", x, "_bbduk.err"), sep = "", skip = 16, header = FALSE) %>%
+  mutate(V1 = str_remove(V1, ":")) %>%
+  filter(V1 %in% c("Input", "Result")) %>%
+  select(V1,V2) %>%
+  column_to_rownames("V1") %>% t() %>%
+  as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(bbduk) <- c("Sample", "BBDuk_Input", "BBDuk_Output")
+
+##SICKLE
+sickle <- read.delim(paste0("../../data/logs/sickle_logs/", x, "_se_sickle.out"), sep = "", skip = 3, header = FALSE) %>% select(V3, V4) %>% top_n(.,2) %>%
+  mutate(V4 = str_remove(V4, ":")) %>%
+  column_to_rownames("V3") %>% t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(sickle) <- c("Sample", "sickle_Input", "sickle_Output")
+
+##STAR
+STAR <- read.delim(paste0("../../data/logs/STAR_logs/", x, "_Log.final.out"), sep = "|", skip = 3, header = FALSE, strip.white = TRUE) %>%
+  filter(V1 %in% c("Number of input reads",
+                   "Uniquely mapped reads number",
+                   "Number of reads mapped to multiple loci",
+                   "Number of reads mapped to too many loci"
+                   #"Number of reads unmapped: too short",
+                   #"Number of reads unmapped: other"
+                   )) %>%
+  column_to_rownames("V1") %>%
+  t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(STAR) <- c("Sample","STAR_Input", "STAR_Uniquely_Mapped",
+                     "STAR_Multi_Mapped","STAR_Too_Many"#, "STAR_Unmapped_Short",
+                     #"STAR_Unmapped_Other"
+                    )
+
+full_join(bbduk,sickle) %>% full_join(., STAR)
+
+}
+) %>% do.call("rbind",.) %>% column_to_rownames("Sample") %>%
+  mutate_if(is.character, as.numeric) %>% 
+  rownames_to_column("Sample") %>% select(Sample, everything()) %>%
+  mutate(Pct_virus = round(100 * (STAR_Uniquely_Mapped + STAR_Multi_Mapped + STAR_Too_Many)/(STAR_Input),2) )
+
+
+
+```
+#### combine processing stats for PE and SE
+```{r combine filtering metrics, echo=FALSE, message=FALSE, error=FALSE}
+
+#problematically encoded FASTQ for SRR027169, others have no STAR logs
+
+processing_stats <- full_join(PE_processing_stats, SE_processing_stats)
+
+viral_reads_stats <- processing_stats %>% select(Sample, STAR_Input,STAR_Uniquely_Mapped,STAR_Multi_Mapped,STAR_Too_Many,Pct_virus) %>%
+  rename(Run = Sample) %>% inner_join(meta %>% select(Run, SRAStudy))
+
+viral_reads_stats <- viral_reads_stats %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000)
+
+save(viral_reads_stats, file = "../../data/rdata/viral_reads_stats.R")
+
+```
+
+## Look at RNAseq stats for public data
+### proportion of viral reads across studies
+Here we see the interesting trend that ribodepleted samples seem to have much higher viral read proportions
+```{r percent virus across studies}
+
+meta %>% select(Run, LibraryLayout, LibrarySelection, SRAStudy) %>% 
+  inner_join(processing_stats,by = c("Run" = "Sample")) %>%
+  arrange(., LibrarySelection, SRAStudy, Pct_virus) %>%
+  mutate(Run = factor(Run, levels = Run)) %>%
+  ggplot(data =., aes(x = Run, y = Pct_virus, fill = LibrarySelection)) +
+  geom_bar(stat = "identity", position = "dodge")
+
+meta %>% select(Run, LibraryLayout, LibrarySelection, SRAStudy) %>% 
+  inner_join(processing_stats,by = c("Run" = "Sample")) %>%
+  arrange(., LibrarySelection, SRAStudy, Pct_virus) %>%
+  mutate(Run = factor(Run, levels = Run)) %>%
+  ggplot(data =., aes(x = SRAStudy, y = Pct_virus, fill = LibrarySelection)) +
+  geom_boxplot()  +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  labs(y = "Log10 vCPM+1", Fill = "Cellular Fraction")
+ggsave("../../figures/percent_viral_load_by_study.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+```
+### look at viral load by tissue/cell type
+
+#### viral load in cellular compartments of neurons
+```{r SRP136115_cell_compartment_viral_load}
+##cellular compartments
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  filter(SRAStudy == "SRP180130") %>%
+  filter( sample_subtype %in% c("nucleus","cytoplasm", "whole cell")) %>%
+  arrange(sample_subtype) %>%    
+  mutate(Run=factor(Run, levels=unique(Run))) %>% 
+  ggplot(data =., aes(x = Run, y = log(CPM+1,10), fill = sample_subtype)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  facet_wrap(facets = "tissue_name", scales = "free") +
+  labs(y = "Log10 vCPM+1", Fill = "Cellular Fraction")
+ggsave("../../figures/SRP136115_cell_compartment_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+
+```
+######FIGURE 1
+This corresponds to figure 1 of the publication
+```{r SRP001188_cellular process_viral_load, eval= FALSE}
+##cellular compartments
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  filter( sample_subtype %in% c("nucleus","cytoplasm", "whole cell", "process")) %>%
+  arrange(sample_subtype) %>%    
+  mutate(Run=factor(Run, levels=unique(Run))) %>% 
+  ggplot(data =., aes(x = Run, y = CPM, fill = sample_subtype)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  facet_wrap(facets = "tissue_name", scales = "free") +
+  labs(y = "vCPM", Fill = "Cellular Fraction", fill = "Cellular Compartment") +
+  scale_fill_manual(values = c("cyan3","magenta3","grey75","goldenrod2"))
+ggsave("../../figures/SRP136115_cell_compartment_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  filter( sample_subtype %in% c("nucleus","cytoplasm", "whole cell", "process")) %>%
+  arrange(sample_subtype) %>%    
+  mutate(Run=factor(BioSample, levels=unique(BioSample))) %>% 
+  ggplot(data =., aes(x = BioSample, y = CPM, fill = sample_subtype)) +
+  geom_bar(stat = "identity", position = "stack", color = "black", size = 0.5) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  facet_wrap(facets = "tissue_name", scales = "free") +
+  labs(y = "vCPM", Fill = "Cellular Fraction", fill = "Cellular Compartment") +
+  scale_fill_manual(values = c("cyan3","magenta3","grey75","goldenrod2")) +
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+  ggsave("../../figures/SRP136115_cell_compartment_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+
+```
+
+#### viral load across tissues
+
+######FIGURE 2
+This corresponds to Figure 2 in the publication
+```{r SRP009481_tissue_type_viral_load}
+
+#Same study organ comparison
+viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  filter(SRAStudy == "SRP009481") %>%
+  arrange(organ) %>%    
+  mutate(Run=factor(Run, levels=unique(Run))) %>% 
+  ggplot(data =., aes(x = Run, y = log(CPM +1, 10), fill = organ)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  labs(y = "Log10 vCPM+1")
+ggsave("../../figures/SRP009481_tissue_type_viral_load.pdf", device = "pdf",dpi = 300, width = 7.5, height = 4)
+
+
+```
+
+#### viral load in developmental stags
+```{r SRP001185_development_viral_load}
+viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  filter(SRAStudy == "SRP001185" & tissue_name != "") %>%
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  inner_join(
+    data.frame(tissue_name = c("early_clevage", "1-4_cell", "8-cell_gastrula",
+      "day_3","day_4","day_9","day_12"),
+               Development = factor(
+                 c("early cleavage", "1-4 vells", "8 cells", 
+                   "day 3", "day 4", "day 9", "day 12"), 
+                 levels = c("early cleavage", "1-4 vells", "8 cells", 
+                   "day 3", "day 4", "day 9", "day 12")
+               ), 
+      Stage = c( rep("embryo",4), "trochophore", "veliger", "veliger"))
+  )%>%
+  ggplot(data =., aes(x = Development, y = log(CPM +1,10), fill = Stage)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15)) +
+  labs(y = "Log10 vCPM+1", x = "Development Stage", fill = "Life Stage")
+ggsave("../../figures/SRP001185_development_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+```
+
+#### viral load in neurons
+```{r SRP000986_neuron_types_viral_load}
+
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  filter(SRAStudy == "SRP000986") %>%
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  arrange(tissue_name) %>%
+  mutate(Run = factor(Run, levels = (unique(Run)))) %>%
+  ggplot(data =., aes(x = Run, y = log(CPM+1, 10), fill = tissue_name)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15)) +
+  labs(y = "Log10 vCPM+1", fill = "Neuron Type")
+ggsave("../../figures/SRP000986_neuron_types_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+```
+
+```{r SRP007385_neuron_types_viral_load}
+
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  filter(SRAStudy == "SRP007385") %>%
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  arrange(tissue_name) %>%
+  mutate(Run = factor(Run, levels = (unique(Run)))) %>%
+  ggplot(data =., aes(x = Run, y = log(CPM+1, 10), fill = tissue_name)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust=0.15)) +
+  labs(y = "Log10 vCPM+1", fill = "Neuron Type")
+ggsave("../../figures/SRP007385_neuron_types_viral_load.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+```
+
+######FIGURE 3
+This corresponds to Figure 3 in the publication
+```{r SRP000986_and_SRP007385_neuron_types_viral_load}
+
+  viral_reads_stats %>% 
+  left_join(meta %>% select(Run, organ, organ_subtype, sample_type, sample_subtype, tissue_name, BioSample)) %>% 
+  filter(SRAStudy %in% c("SRP000986","SRP007385")) %>%
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  arrange(tissue_name) %>%
+  mutate(Run = factor(Run, levels = (unique(Run)))) %>%
+  ggplot(data =., aes(x = Run, y = log(CPM+1, 10), fill = tissue_name, shape = sample_subtype)) +
+  geom_bar(stat = "identity") +
+  geom_point(size = 2)+
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust=0, size = 8),
+        legend.key.size = unit(0.5, 'cm'),) +
+  labs(y = "Log10 vCPM+1", fill = "Neuron Type", shape = "Cell Number") +
+  facet_wrap(facets = "SRAStudy", scales = "free")+
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+ggsave("../../figures/SRP000986_and_SRP007385_neuron_types_viral_load.pdf", device = "pdf",dpi = 300, width = 7, height = 4.5)
+
+
+```
+
+
+## add in newly generated sequencing data
+###load metadata of newly generated RNAseq data
+```{r add in schmale data}
+schmale_meta <- read.csv("../../data/annotation_data/Schmale_sample_annot.csv") %>%
+  select(Run, SRAStudy, Sample,BioSample,
+         LibraryStrategy, LibrarySelection, LibraryLayout,  
+         organ, organ_subtype, sample_type, sample_subtype, tissue_name)
+
+meta <- meta %>% full_join(schmale_meta)
+
+
+```
+
+### rerun filtering stats compilation to include newly generated data
+NOTE: this is not efficiently written, it just redoes everything instead of just doing it for the new data and concatenating. But it works and was easy to just copy paste to rerun... 
+```{r filtering metrics redo to incorporate schmale datq, echo=FALSE, message=FALSE, error=FALSE}
+
+PE <- meta %>% filter(LibraryLayout == "PAIRED") %>% select(Run) %>% unique()
+
+SE <- meta %>% filter(LibraryLayout == "SINGLE") %>% select(Run) %>% unique()
+#problematically encoded FASTQ for SRR027169, others have no STAR logs
+SE <- SE %>% filter(! Run %in% c("SRR027169", "SRR027053", "SRR027057", "SRR027059") )
+
+PE_processing_stats <- lapply(PE$Run, FUN = function(x) {
+bbduk <- read.delim(paste0("../../data/logs/BBDUK_logs/", x, "_bbduk.err"), sep = "", skip = 16, header = FALSE) %>%
+  filter(V1 %in% c("Input:", "Result:")) %>%
+  mutate(V1 = str_remove(V1, ":")) %>%
+  select(V1,V2) %>%
+  column_to_rownames("V1") %>% t() %>%
+  as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(bbduk) <- c("Sample", "BBDuk_Input", "BBDuk_Output")
+
+sickle <- read.delim(paste0("../../data/logs/sickle_logs/", x, "_pe_sickle.out"), sep = "", skip = 3, header = FALSE) %>% select(V4, V5) %>% top_n(.,2) %>%
+  mutate(V4 = str_remove(V4, ":")) %>%
+  column_to_rownames("V4") %>% t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(sickle) <- c("Sample", "sickle_Input", "sickle_Output")
+sickle <- sickle %>% mutate(sickle_Output_pairs = sickle_Output/2)
+
+STAR <- read.delim(paste0("../../data/logs/STAR_logs/", x, "_Log.final.out"), sep = "|", skip = 3, header = FALSE, strip.white = TRUE) %>%
+  filter(V1 %in% c("Number of input reads",
+                   "Uniquely mapped reads number",
+                   "Number of reads mapped to multiple loci",
+                   "Number of reads mapped to too many loci"
+                   #"Number of reads unmapped: too short",
+                   #"Number of reads unmapped: other"
+                   )) %>%
+  column_to_rownames("V1") %>%
+  t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(STAR) <- c("Sample","STAR_Input", "STAR_Uniquely_Mapped", 
+                     "STAR_Multi_Mapped","STAR_Too_Many"#, "STAR_Unmapped_Short",
+                     #"STAR_Unmapped_Other"
+                    )
+full_join(bbduk,sickle) %>% full_join(., STAR)
+
+}
+) %>% do.call("rbind",.) %>% column_to_rownames("Sample") %>%
+  mutate_if(is.character, as.numeric) %>% 
+  rownames_to_column("Sample") %>% select(Sample, everything()) %>%
+  mutate(Pct_virus = round(100 * (STAR_Uniquely_Mapped + STAR_Multi_Mapped + STAR_Too_Many)/(STAR_Input),2) )
+
+SE_processing_stats <- lapply(SE$Run, FUN = function(x) {
+bbduk <- read.delim(paste0("../../data/logs/BBDUK_logs/", x, "_bbduk.err"), sep = "", skip = 16, header = FALSE) %>%
+  mutate(V1 = str_remove(V1, ":")) %>%
+  filter(V1 %in% c("Input", "Result")) %>%
+  select(V1,V2) %>%
+  column_to_rownames("V1") %>% t() %>%
+  as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(bbduk) <- c("Sample", "BBDuk_Input", "BBDuk_Output")
+
+sickle <- read.delim(paste0("../../data/logs/sickle_logs/", x, "_se_sickle.out"), sep = "", skip = 3, header = FALSE) %>% select(V3, V4) %>% top_n(.,2) %>%
+  mutate(V4 = str_remove(V4, ":")) %>%
+  column_to_rownames("V3") %>% t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(sickle) <- c("Sample", "sickle_Input", "sickle_Output")
+
+STAR <- read.delim(paste0("../../data/logs/STAR_logs/", x, "_Log.final.out"), sep = "|", skip = 3, header = FALSE, strip.white = TRUE) %>%
+  filter(V1 %in% c("Number of input reads",
+                   "Uniquely mapped reads number",
+                   "Number of reads mapped to multiple loci",
+                   "Number of reads mapped to too many loci"
+                   #"Number of reads unmapped: too short",
+                   #"Number of reads unmapped: other"
+                   )) %>%
+  column_to_rownames("V1") %>%
+  t() %>% as.data.frame() %>%
+  rownames_to_column("Sample") %>% mutate(Sample = x)
+colnames(STAR) <- c("Sample","STAR_Input", "STAR_Uniquely_Mapped",
+                     "STAR_Multi_Mapped","STAR_Too_Many"#, "STAR_Unmapped_Short",
+                     #"STAR_Unmapped_Other"
+                    )
+
+full_join(bbduk,sickle) %>% full_join(., STAR)
+
+}
+) %>% do.call("rbind",.) %>% column_to_rownames("Sample") %>%
+  mutate_if(is.character, as.numeric) %>% 
+  rownames_to_column("Sample") %>% select(Sample, everything()) %>%
+  mutate(Pct_virus = round(100 * (STAR_Uniquely_Mapped + STAR_Multi_Mapped + STAR_Too_Many)/(STAR_Input),2) )
+
+
+processing_stats <- full_join(PE_processing_stats, SE_processing_stats)
+
+viral_reads_stats <- processing_stats %>% select(Sample, STAR_Input,STAR_Uniquely_Mapped,STAR_Multi_Mapped,STAR_Too_Many,Pct_virus) %>%
+  rename(Run = Sample) %>% inner_join(meta %>% select(Run, SRAStudy))
+viral_reads_stats <- viral_reads_stats %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000)
+
+save(viral_reads_stats, file = "../../data/rdata/viral_reads_stats.R")
+save(processing_stats, file = "../../data/rdata/processing_stats.R")
+
+```
+
+```{r make modified meta data file to sepparate abdominal and gill}
+meta_mod <- meta %>%
+  mutate(SRAStudy =
+           case_when(
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "A") ~ "Schmale_RiboDep_A",
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "L") ~ "Schmale_RiboDep_L",
+             TRUE ~ SRAStudy
+           ))
+```
+
+## look at qPCR data
+### load qPCR data
+```{r load data, message=FALSE, error=FALSE, echo=FALSE, warning=FALSE}
+
+Tissue_codes <- read.delim("../../data/qPCR/Tissue_codes.txt") %>% 
+  mutate(Tissue_Code = paste0(Tissue, "=", Tissue_Name))
+qpcr_bytissue <- read.delim("../../data/qPCR/Schmale_old_animals_qPCR.txt", sep = "\t", header = TRUE,
+           strip.white = TRUE, stringsAsFactors = FALSE) %>% inner_join(Tissue_codes)
+qpcr_wild <- read.delim("../../data/qPCR/Schmale_Wild_qPCR.txt", sep = "\t", header = TRUE,
+           strip.white = TRUE, stringsAsFactors = FALSE) %>% inner_join(Tissue_codes)
+qpcr_primers <- read.delim("../../data/qPCR/Schmale_qPCR_primer_ratios.txt", sep = "\t", header = TRUE,
+           strip.white = TRUE, stringsAsFactors = FALSE)%>% inner_join(Tissue_codes) %>% 
+  pivot_longer(cols = c(AV4, Pol1, A9), names_to = "Primer", values_to = "Mean")
+
+
+
+```
+### visualize qPCR data by tissue
+
+### compare wild and hatchery animals
+###### FIGURE 4
+This corresponds to Figure 4 in the publication
+```{r viral tropism via qPCR in wild and old animals via AV4 primer}
+
+rbind(qpcr_wild,
+      qpcr_bytissue) %>%
+  rename(Cohort = Group) %>%
+  mutate(Cohort = ifelse(Cohort == "W", "Wild", Cohort)) %>%
+  mutate(Tissue = factor(Tissue, levels = c("A", "G", "H", "L", "O", "U", "T", "I" ))) %>%
+  ggplot(., aes(x = Tissue, y = log(Mean + 1,10), group = Animal)) +
+  #geom_bar(stat = "identity", position = "dodge") +
+  geom_line() +
+  geom_point(aes(color = Tissue_Code)) +
+  facet_wrap(facets = "Cohort") +
+  theme_classic() +
+  theme(axis.text = element_text(color = "black")) +
+  labs(y = "Log10 Mean Copies per ng RNA", color = "Tissue Code")
+ggsave("../../figures/Schmale_qPCR_lines_reorderd.pdf", device = "pdf",dpi = 300, width = 7.5, height = 5)
+
+```
+
+## compare effect of quant method 
+
+### Compare RiboDepletion to poly a for virus and long gene twitchin
+###### FIGURE 6
+this figure corresponds to Figure 6 in the publication
+```{r Compare Schmale PolyA and RiboDep, echo=FALSE, message=FALSE, error=FALSE}
+a <-processing_stats %>%
+  rename(Run = Sample) %>%inner_join(schmale_meta) %>%
+  filter(Sample %in% (schmale_meta %>% filter(SRAStudy == "Schmale_RiboDep"))$Sample ) %>%
+  mutate(viral_CPM = 
+           1000000 * (STAR_Uniquely_Mapped + STAR_Multi_Mapped + STAR_Too_Many)/STAR_Input ) %>%
+    arrange(viral_CPM) %>%
+  mutate(Run = factor(Run, levels = Run)) %>%
+  mutate(organ_subtype = ifelse(organ_subtype == "abdominal ganglion", "Abdominal Ganglion","Gill")) %>%
+  ggplot(data =., aes(x = Sample, y = Pct_virus, fill = LibrarySelection)) +
+  geom_bar(stat = "identity", position = "dodge") + facet_wrap(facets = "organ_subtype", scales = "free")  +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  labs(y = "% Input Reads\nMapped to Virus", Fill = "Sample")
+a
+ggsave("../../figures/Schamle_PolyA_vs_RiboDep.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+
+schmale_meta %>% select(Run, Sample) %>%
+  inner_join(processing_stats) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  mutate(method = ifelse(str_detect(Run, "RiboDep"), "RiboDeplete", "PolyA")) %>%
+  group_by(Sample) %>%
+  pivot_wider(id_cols = Sample, names_from = method, values_from = CPM) %>%
+  filter(! is.na(RiboDeplete))
+
+test <- processing_stats %>%
+  rename(Run = Sample) %>%inner_join(schmale_meta) %>%
+  filter(Sample %in% (schmale_meta %>% filter(SRAStudy == "Schmale_RiboDep"))$Sample ) %>% 
+  mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
+  mutate(method = ifelse(str_detect(Run, "RiboDep"), "RiboDeplete", "PolyA")) %>%
+  group_by(Sample) %>%
+  pivot_wider(id_cols = Sample, names_from = method, values_from = CPM) %>%
+  filter(! is.na(RiboDeplete)) %>%
+  mutate(ratio = RiboDeplete/PolyA)
+
+
+STAR_stats <- read.delim("../../data/alignment_stats/STAR_count_meta.txt", stringsAsFactors = FALSE, strip.white = TRUE) %>%
+  pivot_longer(., cols = -X, names_to = "Run", values_to = "count") %>%
+  mutate(Run = str_remove(Run, "^X") %>% str_remove(., "_Log.final.out")) %>%
+  mutate(genome = ifelse(str_detect(Run, "_host"), "host", "virus")) %>%
+  mutate(Run = str_remove(Run, "_host")) %>%
+  mutate(Category = case_when (
+    X =="Number of input reads" ~ "STAR_Input",
+   X == "Number of reads mapped to multiple loci" ~ "STAR_Uniquely_Mapped",
+    X == "Uniquely mapped reads number" ~ "STAR_Multi_Mapped",
+    X == "Number of reads mapped to too many loci" ~ "STAR_Too_Many"
+  )) %>%
+  select(-X) %>%
+  pivot_wider( id_cols = c("Run","genome"), names_from = Category, values_from = "count")
+
+b <- rbind(
+read.delim("../../data/alignment_stats/twitchin_polyA_count.txt", header = TRUE, stringsAsFactors = FALSE, strip.white = TRUE) %>%
+  mutate(LibrarySelection = "PolyA") %>% rename( hits =  Total),
+read.delim("../../data/alignment_stats/twitchin_RiboDep_count.txt", header = TRUE, stringsAsFactors = FALSE, strip.white = TRUE) %>%
+  mutate(LibrarySelection = "RiboDeplete") %>% rename( hits =  Total)
+) %>%
+inner_join(STAR_stats %>% filter(genome == "host") %>%
+  select(Run, STAR_Uniquely_Mapped)) %>%
+  mutate(pct_host = hits/STAR_Uniquely_Mapped) %>%
+  inner_join(schmale_meta) %>%
+  filter(Sample %in% (schmale_meta %>% filter(SRAStudy == "Schmale_RiboDep"))$Sample ) %>%
+  mutate(Run = factor(Run, levels = Run)) %>%
+  mutate(organ_subtype = ifelse(organ_subtype == "abdominal ganglion", "Abdominal Ganglion","Gill")) %>%
+    ggplot(data =., aes(x = Sample, y = pct_host, fill = LibrarySelection)) +
+  geom_bar(stat = "identity", position = "dodge") + facet_wrap(facets = "organ_subtype", scales = "free")  +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  labs(y = "% Host Reads\nMapped to Twitchin", Fill = "Sample")
+b
+
+cowplot::plot_grid(plotlist = list(a,b), nrow = 2, ncol = 1)
+ggsave("../../figures/Schamle_PolyA_vs_RiboDep_TwitchinvHost.pdf", device = "pdf",dpi = 300, width = 6, height = 6)
+
+```
+
+
+### Compare quanitification values between RNAseq PolyA and RiboDep to qPCR primers
+###### FIGURE 7
+This corresponds to Figure 7 in the publication
+```{r compare primer region specific hits}
+
+viral_reads_stats %>% filter(Run %in% paste0(qpcr_primers$Sample,"_RiboDep")) %>%select(Run, CPM) %>%
+  mutate(method = "RiboDep", Run = str_remove(Run, "_RiboDep")) %>%
+  rbind(
+    viral_reads_stats %>% filter(Run %in% qpcr_primers$Sample) %>%select(Run, CPM) %>% mutate(method = "polyA")
+  ) %>%
+  rename(Quant = CPM) %>%
+  rbind(
+    qpcr_primers %>% filter(Tissue %in% c("A","L")) %>% select(Sample, Mean, Primer) %>%
+      rename(Quant = Mean, method = Primer, Run = Sample)
+  ) %>%
+  filter(Run %in% schmale_meta$Run) %>%
+  mutate(animal = str_extract(Run, "[0-9]+B27"), 
+         Tissue= str_extract(Run,"[AL]")) %>% 
+  mutate(Tissue = ifelse(Tissue == "A", "Abdominal Ganglion", "Gill")) %>%
+  ggplot(data =., aes(x = animal, y = log(Quant+1,10), color = method,shape = method, group = method)) +
+  geom_point() +
+  geom_line() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
+  labs(y = "log10 Quant + 1", x = "Sample") +
+  facet_wrap(facets = "Tissue", scales = "free")
+ggsave("../../figures/compare_viral_load_by_method_log10.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+```
+
+### Primer region relative ratios
+Look at how the ratio of hits to one primer region to another compares between technologies
+###### FIGURE 8
+This corresponds to Figure 8 in the publication
+```{r compare primer region specific hit ratios}
+
+region_files <- list.files(path="../../data/alignment_stats/", pattern="_region_hits.txt")
+
+region_hits <- lapply(region_files, FUN = function(x){
+  read.table(file = paste0("../../data/alignment_stats/",x), 
+             header = FALSE,
+             stringsAsFactors = FALSE,
+             sep = "\t",
+             col.names = c("contig","start","stop","name","hits")
+  ) %>% mutate(., sample = str_remove(string = x,"_region_hits.txt"))
+  } ) %>% do.call("rbind",.) 
+
+schmale_meta %>% select(Run, Sample, LibrarySelection) %>%
+  inner_join(region_hits, by = c("Run" = "sample")) %>%
+  filter( str_detect(name, "primer")) %>%
+  mutate(name = str_remove(name, "_qPCR_primer")) %>%
+  rename("Primer" = name, method = LibrarySelection) %>%
+  full_join(qpcr_primers %>% 
+              rename(hits = Mean, tissue = Tissue) %>% 
+              mutate(method = "qPCR")) %>%
+  pivot_wider(id_cols = c(Run, Sample, method), names_from = Primer, values_from = hits) %>%
+  mutate("AV4/Pol1" = AV4/Pol1,
+         "A9/Pol1" = A9/Pol1,
+         "Pol1/Pol1" = Pol1/Pol1) %>% 
+  pivot_longer(data = ., cols = c("AV4/Pol1","A9/Pol1","Pol1/Pol1")) %>%
+  filter(str_detect(name, "/")) %>%
+  mutate(Primer = factor(name, levels = c("AV4/Pol1", "Pol1/Pol1", "A9/Pol1"))) %>%
+  filter(Sample %in% c("16B27A","17B27A","19B27A","20B27A","2B27A")) %>%
+  ggplot(data =., aes(x = Primer, y = value, fill = method)) +
+  geom_boxplot() +
+  theme_classic() +
+  scale_y_continuous(breaks =  seq(0, 100, by = 1)) +
+  theme(axis.text = element_text(color = "black"), 
+        axis.title = element_text(color = "black"),
+        strip.text = element_text(color = "black"),
+        legend.title = element_text(color = "black"),
+        legend.text =  element_text(color = "black")) +
+  labs(x = "Primer Regions", y = "Ratio", fill = "Method")
+ggsave("../../figures/primer_region_by_method.pdf", device = "pdf",dpi = 300, width = 3.5, height = 3.5)
+```
+
+
+## Orientation and strandedness
+
+### check strandedness of library protocls 
+this is a sanity check for strandedness fo library prep (stranded or unstranded and if files are give data as expected)
+```{r check strandedness}
+
+#BEDops gff2bed < foo.gff3 > foo.bed
+#RNASeQC infer_experiment.py
+
+strandedness_files <- list.files(path="../../data/strandedness/", pattern="_strandedness.txt", full.names = TRUE)
+strandedness_files <- (PE %>% mutate(Run = paste0("../../data/strandedness/",Run, "_strandedness.txt")))$Run
+empty = strandedness_files[file.size(list.files(path="../../data/strandedness/", pattern="_strandedness.txt", full.names = TRUE)) == 0L]
+empty = c("../../data/strandedness/SRR12061190_strandedness.txt","../../data/strandedness/SRR830638_strandedness.txt")
+strandedness_files <- strandedness_files[! strandedness_files %in% empty]
+
+strandedness <- lapply(X = strandedness_files, FUN = function(x) {
+  dat <- read.delim(x, sep = ":", 
+                    skip = 4, 
+                    header = FALSE, 
+                    stringsAsFactors = FALSE,
+                    strip.white = FALSE) %>%
+  filter(V1 != "This is PairEnd Data") %>%
+  mutate(Run = str_remove(x, "_strandedness.txt")) %>%
+  mutate(Run = str_remove(Run, "../../data/strandedness/")) %>%
+  pivot_wider(id_cols = Run, names_from = V1, values_from = V2)
+  dat
+  }
+) %>% do.call("rbind", .)
+
+
+#SRR12061239_strandedness.txt is empty
+
+# strandedness_files[14]
+# x="../../data/strandedness/SRR830638_strandedness.txt"
+# read.delim(x, sep = ":", skip = 4, header = FALSE, stringsAsFactors = FALSE, strip.white = FALSE)  %>%
+#   mutate(Run = str_remove(x, "_strandedness.txt")) %>%
+#   mutate(Run = str_remove(Run, "../../data/strandedness/")) %>%
+#   pivot_wider(id_cols = Run, names_from = V1, values_from = V2)
+# 
+# file.size(list.files(path="../../data/strandedness/", pattern="_strandedness.txt", full.names = TRUE))
+
+strandedness %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  ggplot(data =., aes(x = Run, y = `Fraction of reads explained by 1+-,1-+,2++,2--`)) +
+  geom_point() +
+  facet_wrap(facets = "SRAStudy", scales = "free_x") +
+  labs(y = "prop")
+#ggsave(file = "~/Desktop/strandedness.pdf", device = "pdf")
+
+strandedness %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  filter(SRAStudy == "SRP136115") %>% 
+  filter(`Fraction of reads explained by 1+-,1-+,2++,2--` < 0.9) %>%
+  inner_join(read.csv("../../data/annotation_data/sample_annot.csv") %>%
+  filter(SRAStudy == "SRP136115") %>% select(Run, LibraryName))
+
+#cohort 28 M1, M6, A1, A3, A5
+#backwards samples:
+# SRR6871213
+# SRR6871214
+# SRR6871216
+# SRR6871221
+# SRR6871223
+# SRR6871224
+
+
+
+# Fraction of reads explained by 1+-,1-+,2++,2--
+# 1+-,1-+,2++,2–
+# read1 mapped to ‘+’ strand indicates parental gene on ‘-‘ strand
+# read1 mapped to ‘-‘ strand indicates parental gene on ‘+’ strand
+# read2 mapped to ‘+’ strand indicates parental gene on ‘+’ strand
+# read2 mapped to ‘-‘ strand indicates parental gene on ‘-‘ strand
+# Therefore what we've been calling (fwd) is actually (-) strand
+
+processing_stats %>% filter(Sample == "SRR6871213")
+
+# SRR6871213
+# "1++,1--,2+-,2-+": 0.9823
+
+#reads SRR6871213_flipped
+# Fraction of reads explained by "1++,1--,2+-,2-+": 0.0177
+# Fraction of reads explained by "1+-,1-+,2++,2--": 0.9823
+
+#this does indeed suggest this was an error when submitting these files to the SRA that switched read1 and read2 files. As an illumina kit, all files should be stranded >90% to 1+- orientation. Half the files and half are not, suggesting some sort of error at the labeling stage. 
+
+
+strandedness %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  inner_join(., processing_stats %>% 
+               mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>% select(Sample, CPM) %>% 
+                        rename(Run = Sample)
+                        ) %>%
+  filter(SRAStudy %in% c( "SRP136115" , "SRP268155", 
+                          "Schmale_PolyA_Gill", "Schmale_RiboDep") ) %>% 
+  ggplot(data =., aes(x = log(CPM+1), y = `Fraction of reads explained by 1+-,1-+,2++,2--`)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(facets = "SRAStudy", scales = "free_x") +
+  labs(y = "prop")
+#ggsave(file = "~/Desktop/strandedness2.pdf", device = "pdf")
+
+strandedness %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  filter(SRAStudy == "SRP268155") %>% 
+  filter(`Fraction of reads explained by 1+-,1-+,2++,2--` < 0.9) %>%
+  inner_join(read.csv("../../data/annotation_data/sample_annot.csv") %>%
+  filter(SRAStudy == "SRP268155") %>% select(Run, LibraryName)) %>%
+  inner_join(viral_reads_stats %>% select(Run, CPM))
+
+```
+
+### Read orientation (does erad originate from fwd or rev strand of virus?)
+```{r look at read orientation, echo=FALSE, message=FALSE, error=FALSE}
+
+# orientation_files <- list.files(path="../../data/alignment_stats/", pattern="_read_orientations.txt")
+
+
+read_orientations <- read.delim(file = "../../data/alignment_stats/prop_fwd_rev.txt",
+                                header = TRUE, strip.white = TRUE, stringsAsFactors = FALSE)
+
+
+read_orientations %>% mutate(Sum = Forward + Reverse,
+                             sanity_check = ifelse(Total == Sum, "Pass", "Fail"),
+                             prop_fwd = Forward/Total,
+                             prop_rev = Reverse/Total
+                             ) %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  filter(SRAStudy %in% c("Schmale_PolyA_Gill", "Schmale_RiboDep", 
+                         "SRP136115", "SRP268155") ) %>%
+  ggplot(data =., aes(x = Run, y = prop_fwd)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(facets = "SRAStudy", scales = "free")
+
+read_orientations %>% mutate(Sum = Forward + Reverse,
+                             sanity_check = ifelse(Total == Sum, "Pass", "Fail"),
+                             prop_fwd = Forward/Total,
+                             prop_rev = Reverse/Total
+                             ) %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  # filter(SRAStudy %in% c("Schmale_PolyA_Gill", "Schmale_RiboDep", 
+  #                        "SRP136115", "SRP268155") ) %>%
+  ggplot(data =., aes(x = Total, y = prop_rev)) +
+  geom_point(stat = "identity") +
+  facet_wrap(facets = "SRAStudy", scales = "free")
+
+
+read_orientations %>% mutate(Sum = Forward + Reverse,
+                             sanity_check = ifelse(Total == Sum, "Pass", "Fail"),
+                             prop_fwd = Forward/Total,
+                             prop_rev = Reverse/Total
+                             ) %>% 
+  inner_join(meta %>% select(Run, SRAStudy)) %>%
+  filter(SRAStudy %in% c("Schmale_PolyA_Gill", "Schmale_RiboDep", 
+                         "SRP136115", "SRP268155") ) %>%
+  # filter(SRAStudy %in% c("Schmale_PolyA_Gill", "Schmale_RiboDep", 
+  #                        "SRP136115", "SRP268155") ) %>%
+  ggplot(data =., aes(x = log(Total+1,10), y = prop_rev)) +
+  geom_point(stat = "identity") +
+  facet_wrap(facets = "SRAStudy", scales = "free") +
+  labs(y = "Proportion of Reads from Reverse Strand",
+       x = "Log10 vCPM+1")
+ggsave(file = "~/Desktop/fwd_rev_pct.pdf", device = "pdf")
+
+```
+
+### look at alignment polarity (ie which strand of virus it comes from, fwd or rev?)
+###### FIGURE 10
+This corresponds to Figure 10 of the publication
+```{r read orientation figure, echo = FALSE, warning=FALSE, message=FALSE, fig.height= = 4}
+
+alignment_polarity <- rbind(
+read.delim("../../data/alignment_stats/Sra_list_Paired_SRP268155_prop_fwd_rev.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE),
+read.delim("../../data/alignment_stats/Sra_list_Paired_SRP136115_prop_fwd_rev.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE),
+read.delim("../../data/alignment_stats/Schmale_ribodepleted_samples_prop_fwd_rev.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE),
+read.delim("../../data/alignment_stats/Schmale_PolyA_gill_prop_fwd_rev.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE)
+)
+
+
+alignment_polarity %>%
+  inner_join(meta %>% select(Run, SRAStudy,tissue_name)) %>%
+  mutate( tissue_name = ifelse(
+    is.na(tissue_name), 
+          ifelse(str_detect(Run, "A"), "Abdominal Ganglion", "Gill"),
+          tissue_name )
+  ) %>%
+  mutate(prop_fwd = Forward/Total) %>%
+  mutate( method =
+            ifelse(
+              SRAStudy %in% c("Schmale_RiboDep", "SRP136115"),
+              "RiboDepleted","PolyA Selected"
+            )) %>%
+  inner_join(viral_reads_stats %>% select(Run, CPM)) %>%
+  ggplot(data =., aes(x = CPM, y = prop_fwd, color = tissue_name, shape = SRAStudy)) +
+  geom_point() +
+  facet_wrap(facets = "method", scales = "free_x") +
+  scale_x_continuous(trans='log10') +
+  theme_bw() +
+  labs(x = "Viral Load (CPM)", y = "Proportion of Reads\nfrom Positive Strand",
+       shape = "Study", color = "Tissue")
+
+ggsave(filename = "../../figures/prop_fwd_strand.tiff", device = "tiff",
+       height = 3, width = 7)
+
+
+
+```
+
+
+
+### compare viral read polarity tso host
+This compares the proportion of reads from the fwd strand of virus to those of the whole host genome and those of a housekeeping gene of known polarity (GAPDH)
+###### FIGURE 11
+This corresponds to Figure 11 of the publication
+```{r read orientation host vs virus, echo=FALSE, message=FALSE, error=FALSE}
+
+load(file = "../../data/rdata/viral_reads_stats.R")
+load(file = "../../data/rdata/processing_stats.R")
+
+
+rbind(
+read.delim("../../data/alignment_stats/SRP268155_host_read_orientations.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE) %>%
+  mutate(prop_rev = reverse/total, origin = "host") %>% select(sample, prop_rev, origin),
+read.delim("../../data/alignment_stats/SRP268155_host_GAPDH_read_orientations.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE) %>%
+  mutate(prop_rev = reverse/total, origin = "GAPDH") %>% select(sample, prop_rev, origin),
+read.delim("../../data/alignment_stats/SRP268155_read_orientations.txt", 
+           strip.white = TRUE, stringsAsFactors = FALSE) %>%
+  mutate(prop_rev = reverse/total, origin = "virus") %>% select(sample, prop_rev, origin)
+) %>%
+  dplyr::rename(Run = sample) %>%
+  inner_join(
+    read.delim("../../data/annotation_data/sample_annot.csv", sep = ",") %>% 
+      filter(SRAStudy == "SRP268155") %>%  select(Run, LibraryName) 
+    ) %>% 
+  inner_join(.,
+             read.delim("../../data/annotation_data/Kron_metadata.csv", sep = ",") %>%
+               select(Seq_ID, Age, Tissue) %>% dplyr::rename(.,"LibraryName" = "Seq_ID")) %>% 
+  inner_join(viral_reads_stats %>% select(Run, CPM)) %>%
+  ggplot(data =., aes(x = log(CPM+1,10), y = prop_rev, fill = origin)) +
+  geom_point(shape = 21, color = "black") +
+  scale_fill_viridis_d() +
+  theme_classic() +
+  theme(legend.position = "top")+
+  labs(x = "Viral Load ( log10(CPM+1) )", y = "Proportion from\nNegative Strand",
+       fill = "") 
+  ggsave(filename = "../../figures/prop_rev_hkg.pdf", device = "pdf", width = 3.5, height = 3)
+
+
+```
+
+
+## Splices
+
+### investigation of most common splice sites by donor and acceptor
+```{r look at junctions from STAR, echo=FALSE, message=FALSE, error=FALSE}
+junction_files <- list.files(path="../../data/alignment_stats/", pattern="_SJ.out.tab")
+empty = junction_files[file.size(list.files(path="../../data/alignment_stats/", pattern="_SJ.out.tab",full.names = TRUE)) == 0L]
+
+junction_files <- junction_files[! junction_files %in% empty]
+
+junction_long <- lapply(junction_files, FUN = function(x){
+  read.table(file = paste0("../../data/alignment_stats/",x), 
+             header = FALSE,
+             stringsAsFactors = FALSE,
+             strip.white = TRUE,
+             sep = "\t"
+  ) %>% rename( contig = "V1" , first = "V2", last = "V3", strand = "V4",
+                                     intron_motif = "V5", annotated = "V6", Unique_reads = "V7",
+                                     Multimapped_reads = "V8", Max_overhang = "V9") %>%
+    mutate(.,Run = str_remove(string = x,"_SJ.out.tab"))
+}) %>% do.call("rbind",.) 
+ 
+# 1.	contig name
+# 2.	first base of the splice junction (1-based)
+# 3.	last base of the splice junction (1-based)strand (0: undefined, 1: +, 2: -)
+# 4.	strand (0: undefined, 1: +, 2: -)
+# 5.	intron motif: 0: noncanonical, 1: GT/AG, 2: CT/AC, 3: GC/AG, 4: CT/GC, 5: AT/AC, 6: GT/AT
+# 6.	0: unannotated, 1: annotated, only if an input gene annotations file was used
+# 7.	number of uniquely mapping reads spanning the splice junction
+# 8.	number of multimapping reads spanning the splice junction
+# 9.	maximum spliced alignment overhang
+
+junction_long <- junction_long %>% mutate(Junction_length = last - first) %>%
+  filter(Junction_length > 1000)
+
+ 
+ junction_long %>% filter(first <= 110) %>%
+   left_join(meta %>% select(Run, SRAStudy)) %>%
+   ggplot(data =., aes(x = first, fill = SRAStudy)) + geom_bar(stat = "count") +
+   labs(x = "position", y = "Junction Donor Site (n)") +
+  theme_classic()
+ggsave("../../figures/five_prime_junctions_STAR.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+ 
+ #most common by far are 95 and 96 @ 17 and 12, Schmale (abdominal),SRP268155,SRP136115
+ 
+ junction_long %>%
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique()) %>%
+   ggplot(data =., aes(x = first, fill = SRAStudy)) +
+   #geom_vline(xintercept = 25294, color = "red", linetype = "longdash") +
+   geom_histogram(binwidth = 100, position = "stack") + 
+   labs(y = "Count", x = "Splice Donor Site (100bp bin)")
+ ggsave("../../figures/most_common_donor_sites.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+ 
+  junction_long %>%
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique()) %>%
+   ggplot(data =., aes(x = last, fill = SRAStudy)) +
+   #geom_vline(xintercept = 25294, color = "red", linetype = "longdash") +
+   geom_histogram(binwidth = 100, position = "stack") + 
+   labs(y = "Count", x = "Splice Acceptor Site (100bp bin)")
+   ggsave("../../figures/most_common_acceptor_sites.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+   
+junction_long %>% group_by(first) %>% summarize(count = n()) %>% arrange(desc(count))
+
+junction_long %>% group_by(last) %>% summarize(count = n()) %>% arrange(desc(count))
+
+
+mutate(junction_long,
+  region = case_when(
+      last > 0 & last < 109  ~ "5'UTR",
+      last > 110 & last < 17563  ~ "ORF1a",
+      last > 17564 & last < 25240  ~ "ORF1b",
+      last > 25294 & last < 34962  ~ "ORF2",
+      last > 34963  ~ "3'UTR",
+      TRUE  ~ "Unknown Region"
+     )
+)  %>%
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique()) %>%
+   ggplot(data =., aes(x = region, fill = SRAStudy)) +
+   geom_histogram(stat = "count")
+   ggsave("../../figures/acceptor_sites_distribution.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+   
+mutate(junction_long,
+  region = case_when(
+      first > 0 & first < 109  ~ "5'UTR",
+      first > 110 & first < 17563  ~ "ORF1a",
+      first > 17564 & first < 25240  ~ "ORF1b",
+      first > 25294 & first < 34962  ~ "ORF2",
+      first > 34963  ~ "3'UTR",
+      TRUE  ~ "Unknown Region"
+     )
+)  %>%
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique() ) %>%
+   ggplot(data =., aes(x = region, fill = SRAStudy)) +
+   geom_histogram(stat = "count")
+   ggsave("../../figures/donor_sites_distribution.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+   
+   
+   junction_long %>% 
+     mutate(pair = paste0(first, "-", last)) %>% 
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique() ) %>%
+     group_by(pair) %>% summarize(count = n(), studies = paste0(unique(SRAStudy), collapse = ",") ) %>%
+     arrange(desc(count)) %>%
+     write_delim(., file = "../../results/most_common_splice_pairs.tab", delim = "\t")
+
+```
+
+### most common 5' to ORF splices
+Looking for evidence of a 5' leader that is stitched to ORF2 sgRNAs
+```{r STAR 5' to ORF2, echo=FALSE, message=FALSE, error=FALSE}
+
+junction_long %>% filter( last > 25294, last < 34962, first <= 110) %>%
+  group_by(first, last, Run) %>% summarise(count = n())
+
+
+junction_short <- junction_long %>% filter( last > 25294, last < 34962, first <= 110) %>% droplevels() %>%
+  mutate(start = 0, end = 35948 )
+junction_short$num = as.factor(junction_short$Run) %>% as.numeric 
+
+junction_short  %>%
+  mutate(ID = paste0(first,"-",last)) %>%
+  inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique() ) %>%
+  arrange(last) %>%    
+  mutate(ID=factor(ID, levels=unique(ID))) %>%
+  ggplot(data =., aes(x = start, y = ID, color = SRAStudy)) +
+  geom_segment(aes(xend = first, yend = ID), size = 5) +
+  geom_segment(aes(x = last, xend = end, yend = ID), size = 5) +
+  geom_segment(aes(x= first, xend = last, yend = ID), size = 0.5) +
+  labs(x = "Position", y = "Splice") + 
+  geom_vline(xintercept = 25294, color = "red", linetype = "longdash")
+ggsave("../../figures/five_prime_ORF2_splices.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+```
+
+```{r look at junctions from virORF 5', echo=FALSE, message=FALSE, error=FALSE}
+junction_files <- list.files(path="../../data/bam/junctions/", pattern="_junctions.txt")
+empty = junction_files[file.size(list.files(path="../../data/junctions/", pattern="_junctions.txt",full.names = TRUE)) == 0L]
+
+junction_files <- junction_files[! junction_files %in% empty]
+
+junction_long <- lapply(junction_files, FUN = function(x){
+  read.table(file = paste0("../../data/bam/junctions/",x), 
+             header = TRUE,
+             stringsAsFactors = FALSE,
+             strip.white = TRUE,
+             sep = "\t"
+  ) %>%
+    mutate(.,Run = str_remove(string = x,"_Aligned.sortedByCoord.out.bam_junctions.txt"))
+}) %>% do.call("rbind",.) %>% rename(five_prime = "X5.end", three_prime = "X3.end")
+ 
+# 1.	contig name
+# 2.	first base of the splice junction (1-based)
+# 3.	last base of the splice junction (1-based)strand (0: undefined, 1: +, 2: -)
+# 4.	strand (0: undefined, 1: +, 2: -)
+# 5.	intron motif: 0: noncanonical, 1: GT/AG, 2: CT/AC, 3: GC/AG, 4: CT/GC, 5: AT/AC, 6: GT/AT
+# 6.	0: unannotated, 1: annotated, only if an input gene annotations file was used
+# 7.	number of uniquely mapping reads spanning the splice junction
+# 8.	number of multimapping reads spanning the splice junction
+# 9.	maximum spliced alignment overhang
+
+junction_long <- junction_long %>% mutate(Junction_length = three_prime - five_prime) %>%
+  filter(Junction_length > 1000) %>%
+  mutate(Run = str_remove(Run, "_Aligned.sortedByCoord.out.bam"))
+
+junction_long_mod <- junction_long %>%
+   inner_join(meta_mod %>% select(Run, SRAStudy) %>% unique() ) %>%
+  mutate(SRAStudy =
+           case_when(
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "A") ~ "Schmale_RiboDep_A",
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "L") ~ "Schmale_RiboDep_L",
+             TRUE ~ SRAStudy
+           ))
+
+ 
+ junction_long %>% filter(five_prime <= 200) %>%
+   left_join(meta %>% select(Run, SRAStudy)) %>%
+   ggplot(data =., aes(x = five_prime, fill = SRAStudy)) + geom_bar(stat = "count") +
+   labs(x = "position", y = "Junction Donor Site (n)") +
+  theme_classic()
+ggsave("../../figures/five_prime_junctions_virORF.pdf", device = "pdf",dpi = 300, width = 6, height = 4)
+
+
+```
+
+### visualize all junction landscape
+
+#### RibodDepleted polyA
+```{r look at junctions from virORF all, echo=FALSE, message=FALSE, error=FALSE, fig.align=4}
+
+junc_dat <- junction_long_mod  %>% 
+   filter(SRAStudy == "Schmale_RiboDep_A")
+   #filter(SRAStudy == "SRP136115")
+
+#SRP268155 - kron
+#SRP136115 - Greer
+
+max5 =  max( 
+  (
+    junc_dat %>% group_by(five_prime) %>%
+  summarise(count = n()) %>%
+    ungroup %>%
+    mutate(bin = trunc(five_prime/100)) %>%
+    group_by( bin) %>%
+    summarise(count = sum(count))
+  )$count 
+  )
+  
+max3 =  max( 
+  (
+    junc_dat %>% group_by(three_prime) %>%
+  summarise(count = n()) %>%
+    ungroup %>%
+    mutate(bin = trunc(three_prime/100)) %>%
+    group_by( bin) %>%
+    summarise(count = sum(count))
+  )$count 
+  )
+
+max = max(max5,max3)
+
+topSplices <- junc_dat %>%
+  group_by(five_prime, three_prime) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  filter(count >=2) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10) %>%
+  mutate(pair = paste0(five_prime,"_",three_prime))
+
+plotSplice <- junc_dat %>%
+   #filter(five_prime %in% top5s$five_prime) %>%
+   ggplot(data =., aes(x = five_prime)) +
+  geom_rect( data = structural_proteins, aes(
+      ymin = rep(0,nrow(structural_proteins)),
+      ymax = rep(Inf),
+      xmin = start,
+      xmax = stop,
+      ), fill = structural_proteins$colors,
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = structural_proteins,
+      aes( x = (stop+start)/2,
+           y = Inf,
+           label = code
+      ),
+      size = 2.5,
+      fontface = "bold",
+      vjust = "inward", hjust = "middle",
+      inherit.aes = FALSE
+    ) +
+    #geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =1, xmax = 110, fill = "white", color = "black") +
+   coord_cartesian(ylim = c(-max,max*1.25)) +
+   #scale_y_continuous(breaks = seq(0,max,1000))+
+   geom_histogram(aes(fill = "five_prime"), binwidth = 100, position = "stack") + 
+   geom_histogram(aes(x = three_prime,fill = "three_prime"), binwidth = 100, position = "stack")+
+    geom_curve(data = junc_dat %>%
+                 group_by(five_prime, three_prime) %>%
+                 summarise(count = n()) %>%
+                 ungroup() %>%
+                 mutate(pair = paste0(five_prime,"-",three_prime)) %>%
+                 filter(count >= 2),
+             aes(x = five_prime,
+             y = 0,
+             xend = three_prime,
+             yend = 0, group = pair), 
+             size = 0.1,
+             alpha = 0.5,
+             color = "black") +
+   geom_curve(
+     data = topSplices,
+     aes(x = five_prime,
+             y = 0,
+             xend = three_prime,
+             yend = 0, 
+             group = pair), 
+     size = 0.25, 
+     color = "red"
+   ) +
+   labs(y = "Count", x = "Position", color = "", fill = "") +
+    scale_fill_manual(
+         values =c("five_prime"='black',"three_prime"='blue'), labels = c("Donor","Acceptor"))+
+   theme_bw() +
+  scale_x_continuous(breaks = seq(0, 40000, by = 5000)) +
+  scale_y_continuous(breaks = seq(0, 100000, by = 5000)) +
+    theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+  
+  ann / plotSplice  + 
+  plot_layout(heights = c(1, 12))
+  
+ 
+ggsave(file = "../../figures/Schmale_RiboDep_A_splices.pdf", device = "pdf",
+       width = 7, height = 4)
+ggsave(file = "../../figures/Schmale_RiboDep_A_splices.pdf.tiff", device = "tiff",
+       width = 7, height = 4)
+ 
+
+
+```
+#### all high viral count studies
+###### FIGURE 12
+this generates individual plots that were used to construct figure 12 of the publication
+```{r splice figures for multiple studies}
+
+
+studies <- c(
+  "Schmale_RiboDep_A",
+  "Schmale_RiboDep_L",
+  "Schmale_PolyA_Gill",
+  "Schmale_PolyA_Abdominal",
+  "SRP268155",
+  "SRP136115",
+  "SRP009481",
+  "SRP136115"
+)
+
+
+
+lapply(studies, function(study){
+junc_dat <- junction_long_mod %>% 
+   filter(SRAStudy == study )
+
+#get max
+{
+max5 =  max( 
+  (
+    junc_dat %>% group_by(five_prime) %>%
+  summarise(count = n()) %>%
+    ungroup %>%
+    mutate(bin = trunc(five_prime/100)) %>%
+    group_by( bin) %>%
+    summarise(count = sum(count))
+  )$count 
+  )
+  
+max3 =  max( 
+  (
+    junc_dat %>% group_by(three_prime) %>%
+  summarise(count = n()) %>%
+    ungroup %>%
+    mutate(bin = trunc(three_prime/100)) %>%
+    group_by( bin) %>%
+    summarise(count = sum(count))
+  )$count 
+  )
+
+max = max(max5,max3)
+
+topSplices <- junc_dat %>%
+  group_by(five_prime, three_prime) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  filter(count >=2) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10) %>%
+  mutate(pair = paste0(five_prime,"_",three_prime))
+
+}
+
+plotSplice <- junc_dat %>%
+   #filter(five_prime %in% top5s$five_prime) %>%
+   ggplot(data =., aes(x = five_prime)) +
+  geom_rect( data = structural_proteins, aes(
+      ymin = rep(0,nrow(structural_proteins)),
+      ymax = rep(Inf),
+      xmin = start,
+      xmax = stop,
+      ), fill = structural_proteins$colors,
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = structural_proteins,
+      aes( x = (stop+start)/2,
+           y = Inf,
+           label = code
+      ),
+      size = 2.5,
+      fontface = "bold",
+      vjust = "inward", hjust = "middle",
+      inherit.aes = FALSE
+    ) +
+    #geom_rect( ymin = max + 0.1, ymax = max + 0.2, xmin =1, xmax = 110, fill = "white", color = "black") +
+   coord_cartesian(ylim = c(-max,max*1.25)) +
+   #scale_y_continuous(breaks = seq(0,max,1000))+
+   geom_histogram(aes(fill = "five_prime"), binwidth = 100, position = "stack") + 
+   geom_histogram(aes(x = three_prime,fill = "three_prime"), binwidth = 100, position = "stack")+
+    geom_curve(data = junc_dat %>%
+                 group_by(five_prime, three_prime) %>%
+                 summarise(count = n()) %>%
+                 ungroup() %>%
+                 mutate(pair = paste0(five_prime,"-",three_prime)) %>%
+                 filter(count >= 2),
+             aes(x = five_prime,
+             y = 0,
+             xend = three_prime,
+             yend = 0, group = pair), 
+             size = 0.1,
+             #alpha = 0.5,
+             color = "black") +
+   geom_curve(
+     data = topSplices,
+     aes(x = five_prime,
+             y = 0,
+             xend = three_prime,
+             yend = 0, 
+             group = pair), 
+     size = 0.25, 
+     color = "red"
+   ) +
+   labs(y = "Count", x = "Position", color = "", fill = study) +
+    scale_fill_manual(
+         values =c("five_prime"='black',"three_prime"='blue'), labels = c("Donor","Acceptor"))+
+   theme_bw() +
+  scale_x_continuous(breaks = seq(0, 40000, by = 5000)) +
+  scale_y_continuous(breaks = seq(0, 100000, by = 1000)) +
+    theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+  
+ a <- ann / plotSplice  + 
+  plot_layout(heights = c(1, 12)) 
+ return(a)
+}) 
+
+```
+
+#### investigate most common junctions
+```{r most common splices virORF, echo=FALSE, message=FALSE, error=FALSE}
+
+junction_long_mod <- junction_long %>%
+   inner_join(viral_reads_stats %>% select(Run, SRAStudy) %>% unique() ) %>%
+  mutate(SRAStudy =
+           case_when(
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "A") ~ "Schmale_RiboDep_A",
+             SRAStudy == "Schmale_RiboDep" & str_detect(Run, "L") ~ "Schmale_RiboDep_L",
+             TRUE ~ SRAStudy
+           ))
+
+junction_long_mod$SRAStudy %>% unique()
+
+getMostCommonJuncs <- function(studies){
+
+  lapply(studies, FUN = function(x){
+junc_dat <- junction_long_mod  %>% 
+   filter(SRAStudy == x) %>%
+  mutate(pair = paste0(five_prime, "-", three_prime))
+
+n_juncs <- (junc_dat %>%
+                  group_by(five_prime,three_prime,pair) %>%
+                  summarise(count = n()) %>%
+                  ungroup() %>%
+                  filter(count >2) %>%
+                  summarise(sum = sum(count)))$sum
+n_samps <- junc_dat$Run %>% unique() %>% length()
+
+most <- junc_dat %>%
+  group_by(pair) %>%
+  summarize(five_prime = mean(five_prime),
+            three_prime = mean(three_prime),
+            count = n(),
+            prop_junks = round(count/n_juncs,2),
+            samples = paste0(Run, collapse = ","),
+            n_samples = length(unique(Run)),
+            prop_samples = round(n_samples/n_samps, digits = 2)
+            ) %>%
+  ungroup()%>%
+  arrange(desc(count)) %>%
+  slice_max(count, prop = 0.1) %>%
+  mutate(rank = row_number()) %>%
+  arrange(desc(n_samples)) %>%
+  filter(prop_samples > 0.1) %>%
+  mutate(plot_rank = row_number()) %>%
+  mutate(study = x) %>%
+  select(study,prop_samples, everything())
+
+most
+
+  })
+}
+
+#SRP268155 - kron
+#SRP136115 - Greer
+#Schmale_PolyA_Gill
+#Schmale_PolyA_Abdominal
+#	Schmale_RiboDep
+
+most_common <- getMostCommonJuncs(c("SRP268155","SRP136115",
+                     "Schmale_PolyA_Gill",
+                     "Schmale_PolyA_Abdominal",
+                     "Schmale_RiboDep_A",
+                     "Schmale_RiboDep_L") ) %>%
+  do.call("rbind",.) %>%
+  group_by(pair) %>%
+  summarise(num_studies = n(), 
+            studies = paste0(study,collapse = ","),
+            prop_samples = paste0(prop_samples,collapse = ","),
+            count_samples= paste0(count,collapse = ","),
+            prop_junks =paste0(prop_junks,collapse = ",") ) %>%
+  arrange(desc(num_studies))
+
+write_delim(most_common, file = "../../results/most_common_junctions.txt",
+            delim = "\t")
+
+getMostCommonJuncs(c("Schmale_RiboDep_A") )
+
+14191-23570
+5209-33480	
+5208-33689
+ 
+
+junction_long_mod %>%
+  filter(five_prime == 14189 & three_prime == 20251) %>%
+  group_by(five_prime, three_prime, Run, SRAStudy) %>%
+  summarise(
+    count = n()
+  )  %>%
+  inner_join(viral_reads_stats %>% select(Run, CPM))
+
+```
+
+```{r look at most common splice junctions}
+
+samples <- (meta %>% filter(SRAStudy == "Schmale_RiboDep") %>% 
+  filter(organ == "nervous system"))$Run
+
+junction_long <- lapply(samples, FUN = function(x){
+  dat <- read.table(file = paste0("../../data/junctions/",x,
+                           "_Aligned.sortedByCoord.out.bam_junctions.txt"), 
+             header = TRUE,
+             stringsAsFactors = FALSE,
+             strip.white = TRUE,
+             sep = "\t"
+  ) %>% rename(five_prime = "X5.end", three_prime = "X3.end") %>%
+    mutate(.,sample = x,
+           pair = paste0(five_prime,"-", three_prime))
+  dat_summary <- dat %>% 
+    group_by(five_prime, three_prime, pair, sample) %>%
+    summarise(count = length(pair)) %>%
+    ungroup() %>%
+    mutate(prop = count/nrow(dat)) %>%
+    filter(prop >= 0.01)
+}) %>% do.call("rbind",.) 
+
+junction_long %>% arrange(desc(pair))
+
+```
+
+#### compare splices between polyA and ribodep 
+see if there are common junctions among the polyA and ribo dep samples for evidence of canonical junctions
+```{r compare splices between polyA and RiboDep samples}
+
+junction_long_mod %>%
+  filter(str_detect(SRAStudy, "Schmale")) %>%
+  mutate(
+    method = ifelse(str_detect(Run, "_RiboDep"), "RiboDep","PolyA"),
+    sample = str_remove(Run, "_RiboDep")
+    ) %>%
+  group_by(five_prime, three_prime, sample, SRAStudy, method) %>%
+  summarise(count = n()) %>%
+  ungroup()%>%
+  mutate(pair = paste0(five_prime, "-", three_prime)) %>%
+  #filter(pair == "5208-33689")
+  filter(count >= 2) %>%
+  group_by(five_prime, three_prime, pair, sample) %>%
+  summarise(n_methods = length(unique(method)),
+            methods = paste0(unique(method), collapse = ","),
+            counts = paste0(count, collapse = ",")) %>%
+  ungroup() %>%
+  filter(n_methods > 1) %>%
+  group_by(five_prime, three_prime, pair, methods) %>%
+  summarise(samples = paste0(unique(sample), collapse = ","),
+            n_samples = length(sample),
+            counts = paste0(counts, collapse = ";")
+  ) %>%
+  filter(n_samples > 1)
+  
+
+```
+
+here I'm trying to find any junctions that are common across Runs.
+```{r looking at conserved splices}
+junction_long_mod %>%
+  filter(str_detect(SRAStudy, "Schmale")) %>%
+  filter(str_detect(Run, "L")) %>%
+  mutate(
+    method = ifelse(str_detect(Run, "_RiboDep"), "RiboDep","PolyA"),
+    sample = str_remove(Run, "_RiboDep")
+    ) %>%
+  group_by(five_prime, three_prime, sample, SRAStudy, method) %>%
+  summarise(count = n()) %>%
+  ungroup()%>%
+  filter(str_detect(method, "PolyA")) %>%
+  mutate(pair = paste0(five_prime, "-", three_prime)) %>%
+  #filter(pair == "5208-33689")
+  filter(count >= 2) 
+
+junction_long_mod %>%
+  group_by(Run, SRAStudy) %>%
+  summarise(count = n()) %>%
+              ungroup %>%
+  inner_join(.,
+             junction_long_mod %>%
+  group_by(SRAStudy) %>%
+  summarise(study_count = n())) %>%
+  ungroup %>%
+  mutate(
+    prop_study = trunc(count/study_count*100,3)
+    ) %>%
+  arrange(desc(study_count), desc(count))
+
+
+junction_long_mod_2plus <- junction_long_mod %>% 
+  group_by(Run, five_prime, three_prime, SRAStudy) %>%
+  summarise(count = n()) %>%
+  filter(count >=2 ) %>%
+  select(Run) %>%
+  inner_join(junction_long_mod)
+
+
+
+top_run_juncs <- junction_long_mod_2plus %>%
+  group_by(Run, SRAStudy) %>%
+  summarise(count = n()) %>%
+              ungroup %>%
+  inner_join(.,
+             junction_long_mod_2plus %>%
+  group_by(SRAStudy) %>%
+  summarise(study_count = n())) %>%
+  ungroup %>%
+  mutate(
+    prop_study = trunc(count/study_count*100,3)
+    ) %>%
+  arrange(desc(study_count), desc(count)) %>%
+  filter(prop_study > 5, count > 100)
+
+
+
+junction_long_mod %>%
+  filter(Run == "19B27A_RiboDep") %>%
+  group_by(five_prime, three_prime) %>%
+  filter(five_prime == 5208 & three_prime == 33689) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+
+#5208-33689
+#727/33508 = 0.022
+
+#5209-33480
+#1135/33508 = 0.034
+
+
+junction_long_mod %>%
+  group_by(five_prime, three_prime, Run, SRAStudy) %>%
+  filter(five_prime == 5208 & three_prime == 33689) %>%
+  summarise(count = n()) %>%
+  inner_join(.,
+            junction_long_mod %>%
+            group_by(Run, SRAStudy) %>%
+            summarise(Run_count = n())
+              )  %>%
+  mutate(prop_Run = count/Run_count) %>%
+  ggplot(data =., aes(x = Run_count, y = prop_Run)) +
+  geom_point() +
+  scale_x_log10()
+
+
+junction_long_mod %>%
+  filter(SRAStudy == "Schmale_PolyA_Gill") %>%
+  group_by(five_prime, three_prime) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+
+junction_long_mod_top <-
+  inner_join(junction_long_mod, top_run_juncs %>% select(Run))
+
+
+junction_long_mod_top %>%
+  group_by(five_prime, three_prime) %>%
+  #filter(five_prime == 5209 & three_prime == 33480) %>%
+  summarise(num_studies = length(unique(SRAStudy)),
+            num_Runs = length(unique(Run)),
+            studies = paste0(unique(SRAStudy), collapse = ","),
+            Runs = paste0(unique(Run), collapse = ",")
+            ) %>%
+  ungroup() %>%
+  mutate(
+     Total_studies = length(unique(junction_long_mod_top$SRAStudy)),
+    Total_Runs = length(unique(junction_long_mod_top$Run))
+  ) %>%
+  arrange(desc(num_studies), desc(num_Runs))
+
+
+junction_long_mod_top %>%
+  group_by(five_prime, three_prime, Run, SRAStudy) %>%
+  filter(five_prime == 5209 & three_prime == 33480) %>%
+  summarise(count = n()) %>%
+  inner_join(.,
+            junction_long_mod_top %>%
+            group_by(Run, SRAStudy) %>%
+            summarise(Run_count = n())
+              )  %>%
+  mutate(prop_Run = count/Run_count * 100) %>%
+  ggplot(data =., aes(x = Run_count, y = prop_Run)) +
+  geom_point() +
+  scale_x_log10()
+
+```
+
+
+### TRS site analysis
+try to find canonical TRS sequence using TRS seeds from virORF
+```{r look at TRS sites, echo=FALSE, message=FALSE, error=FALSE, fig.width=4, fig.height=3}
+TRS_files <- list.files(path="../../data/junctions/", pattern="_trs_sites.txt")
+#length(coverage_files)
+empty = TRS_files[file.size(list.files(path="../../data/junctions/", pattern="_trs_sites.txt",full.names = TRUE)) == 0L]
+
+TRS_files <- TRS_files[! TRS_files %in% empty]
+TRS_files <- TRS_files[str_detect(TRS_files,"_Aligned.sortedByCoord.out.bam")]
+
+
+TRS_long <- lapply(TRS_files, FUN = function(x){
+  read.table(file = paste0("../../data/junctions/",x), 
+             header = TRUE,
+             stringsAsFactors = FALSE,
+             strip.white = FALSE,
+             sep = "\t",
+             quote = ""
+            
+  ) %>%
+    mutate(.,sample = str_remove(string = x,"_trs_sites.txt"))
+}) %>% do.call("rbind",.) 
+
+TRS_summary <- TRS_long %>%
+  filter(str_detect(sample, "_Aligned.sortedByCoord.out.bam")) %>%
+  mutate(Run = str_remove(sample, "_Aligned.sortedByCoord.out.bam")) %>%
+  inner_join(viral_reads_stats %>% select(Run, SRAStudy)) %>% 
+  group_by(seed) %>% summarise(count = n(), 
+                                 samples = paste0(unique(Run), collapse = ","),
+                                 studies = paste0(unique(SRAStudy), collapse = ","),
+                               ORFs = paste0(unique(ORF), collapse = ",")) %>% arrange(desc(count)) 
+
+TRS_long %>% inner_join(
+TRS_summary  %>% filter(count >= 2) %>% select(seed)
+) %>% arrange(seed) %>% filter(percentage > 50) %>%
+  group_by(seed, ORF, position_type) %>% summarise(
+    geo_mean_percentage =  exp(mean(log(percentage/100))),
+    samps = paste0(sample, collapse = ","),
+    num_samps = length(sample)
+  ) %>%
+  mutate(total_samples = nrow(TRS_long %>% select(sample) %>% unique),
+         prop_samples = num_samps/total_samples) %>%
+  arrange(desc(prop_samples))
+
+
+TRS_long %>% filter(percentage > 50)
+
+# gCCGGACTTTATAAAAAATTTGTTAGTATCTTATATATAGTA
+# -CGGGACTTTATAAAAAATTTCTTAGTATCTTATATATAGTA
+
+
+#TRS-l
+#6-27 ACTTTATAAAAAATTTGTTAG
+#TRS-B
+#25220-25239 ACTTTTGAAAAAATCTTAG
+
+TRS_seed_files <- list.files(path="../../data/junctions/", pattern="_trs_seeds.txt")
+#length(coverage_files)
+empty = TRS_seed_files[file.size(list.files(path="../../data/junctions/", pattern="_trs_seeds.txt",full.names = TRUE)) == 0L]
+
+TRS_seed_files <- TRS_seed_files[! TRS_seed_files %in% empty]
+TRS_seed_files <- TRS_seed_files[str_detect(TRS_seed_files,"_Aligned.sortedByCoord.out.bam")]
+
+TRS_seeds_long <- lapply(TRS_seed_files, FUN = function(x){
+seeds <- read.table(file = paste0("../../data/junctions/",x), 
+             header = TRUE,
+             stringsAsFactors = FALSE,
+             strip.white = FALSE,
+             sep = "\t",
+             quote = ""
+            
+  ) 
+num_seeds <- nrow(seeds)
+seeds %>%
+  group_by(five_prime, five_prime_region,
+           three_prime, three_prime_region, seed) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  arrange(desc(count)) %>%
+  group_by(seed) %>%
+  summarise(total = sum(count),
+           five_primes = paste0(unique(five_prime), collapse = ","),
+           three_primes = paste0(unique(three_prime), collapse = ","),
+           five_prime_regions = paste0(unique(five_prime_region), collapse = ","),
+           three_prime_regions = paste0(unique(three_prime_region), collapse = ","),
+           individual_counts = paste0(unique(count), collapse = ",") ) %>%
+  slice_max(total, prop = 0.1) %>%
+  mutate(all_seeds = num_seeds,
+         prop_seeds = round(total/all_seeds,2) ) %>%
+filter(prop_seeds > 0.01) %>%
+  mutate(sample = str_remove(string = x,"_Aligned.sortedByCoord.out.bam_trs_seeds.txt"))
+}) %>% do.call("rbind",.) %>% arrange(desc(total))
+
+all_samps = length(unique(TRS_seeds_long$sample))
+TRS_seeds_long_summary <- TRS_seeds_long %>% arrange(desc(seed)) %>%
+  group_by(seed) %>%
+  summarise(
+    cumulative_total = sum(total),
+    geom_mean_prop_seeds = exp(mean(log(prop_seeds))),
+    prop_seeds = paste0(prop_seeds, collapse = ","),
+  samples = paste0(sample, collapse = ","),
+  n_samples = length(unique(sample))
+  ) %>%
+  mutate(prop_samples = n_samples/all_samps) %>%
+  arrange(desc(cumulative_total))
+
+TRS_seeds_long %>% arrange(desc(total))
+
+TRS_seeds_long %>% arrange(desc(all_seeds))
+
+TRS_seeds_long %>% arrange(desc(seed), desc(prop_seeds))
+
+TRS_seeds_long %>% filter(seed == "TGCTA")
+TRS_seeds_long %>% filter(str_detect(five_primes, "5208"))
+
+write_delim(TRS_seeds_long_summary, file = "../../results/most_common_TRS_seeds.txt",
+            delim = "\t")
+
+extract_seq(5208, 15)
+extract_seq(	33480,15)
+
+"TTCTCATA|TGCTA|TGCGTGGTGTGTTTGTGT"
+"GTTGCGGGTGTTGTAGATGGTGCGTC|TGCTA"
+
+"GTTTTGATACCCATTTTGGTGTGATGTGTGA"
+
+"TGGTGTG"
+
+
+```
+
+
+## Coverage
+### Define function for plotting depth
+
+This function generates depth plots. It takes into account if the sample was sequenced with polyA and/or Ribodepletiong
+```{r define plotting function for depth}
+
+### helper function to read per base depth profiles
+readPerBaseDepth<- function(sample) {
+  dat <- read.table(
+    file = paste0("../../data/alignment_stats/",sample, 
+                  "_Aligned.sortedByCoord.out.bam_perBase_depth.tab"),
+    header = FALSE,
+    stringsAsFactors = FALSE,
+    sep = "\t"
+  ) %>%
+    mutate(sample = sample) %>%
+    rename(region = "V1" ,
+           position = "V2",
+            count = "V3")
+      dat$scaled = scale(dat$count)
+      dat
+}
+
+### plotting function 
+plotCoverage <- function(sample, Ribo = FALSE) {
+  #data prep
+  {
+  # Read in polyA file coverage file and smooth it
+  PolyA <- readPerBaseDepth(sample)
+  #calculate plotting bounds for PolyA
+  mA <- (PolyA %>% filter(position > 10000 & position < 30000) %>%
+          summarise(mean = mean(count)))$mean
+  maxA <- max(PolyA$count)
+  minA = mA - (maxA - mA)
+  
+  #Generate titel for plot based on sample name
+  
+  dats <- mutate(PolyA, method = "PolyA")
+  
+  if(Ribo == FALSE){
+  mR = 0
+  maxR = 0
+  minR = 0
+  } else{
+  RiboDep <- readPerBaseDepth(paste0(sample, "_RiboDep"))
+  mR <- (RiboDep %>% filter(position > 10000 & position < 30000) %>%
+          summarise(mean = mean(count)))$mean
+  maxR <- max(RiboDep$count)
+  minR = mR - (maxR - mR)
+  dats <- rbind(mutate(PolyA, method = "PolyA"), mutate(RiboDep, method = "RiboDep") )
+  }
+  
+  m = max(mA, mR)
+  max = max(maxA, maxR)
+  min = min(minA,minR)
+  
+  }
+  
+
+## actual plot
+{
+  plotA <- dats %>%
+    ggplot(data = ., aes(x = position, y = log(count+1,2), color = method)) +
+    #structural protein regions
+      geom_rect( data = structural_proteins, aes(
+      ymin = rep(0,nrow(structural_proteins)),
+      ymax = rep(Inf),
+      xmin = start,
+      xmax = stop,
+      ), fill = structural_proteins$colors,
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = structural_proteins,
+      aes( x = (stop+start)/2,
+           y = Inf,
+           label = code
+      ),
+      size = 2.5,
+      fontface = "bold",
+      vjust = "inward", hjust = "middle",
+      inherit.aes = FALSE
+    ) +
+    #geom_vline(xintercept = 25294, color = "red", linetype = "longdash") +
+    geom_line() +
+    #geom_smooth(se = FALSE, color = "blue", span = 0.1)+
+    theme_classic() +
+    scale_color_manual(values = c("black","blue")) +
+    labs(y = "Log10 Depth", x = "Position", color = sample) +
+    theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+  
+    ann / plotA  + 
+  plot_layout(heights = c(1, 10))
+  
+  }
+  ggsave(filename = paste0("../../figures/", sample, "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+  }
+  
+
+# Trypsin-like_serine_protease	25958	27226
+# S-like_protein	27692	30103
+# Alphavirus_E1-like_protein	30380	31684
+# Alphavirus_E2-like_protein	31931	33094
+# N-like_protein	33839	34909
+# M-like_protein	33485	33709
+```
+### generate coverage plots for various samples
+```{r plot depth compared to subgenomics}
+
+
+plotCoverage(sample = "17B27A", Ribo =TRUE)
+
+
+samples <- c("SRR385787", "SRR385788", "SRR385792", "SRR385793", "SRR385795", "SRR385800", "SRR385802", "SRR385815")
+
+#"SRP268155","SRP136115"
+
+plotCoverage(sample = "SRR6871219", Ribo =FALSE)
+
+#samples <- (meta %>% filter(SRAStudy == "SRP136115"))$Run
+#samples <- (meta %>% filter(SRAStudy == "SRP268155"))$Run
+#samples <- samples[samples != "SRR12061190"]
+
+coverage_files <- list.files(path="../../data/alignment_stats/", pattern="_Aligned.sortedByCoord.out.bam_perBase_depth.tab")
+empty = coverage_files[file.size(list.files(path="../../data/alignment_stats/", pattern="_Aligned.sortedByCoord.out.bam_perBase_depth.tab",full.names = TRUE)) == 0]
+coverage_files <- coverage_files[! coverage_files %in% empty]
+
+viral_reads_stats %>% filter(SRAStudy == "SRP268155") %>%
+  filter(STAR_Uniquely_Mapped > 1000)
+
+lapply(samples,
+       FUN = function(x){
+         plotCoverage(x, Ribo = FALSE)
+       })
+        
+```
+
+### Define function to plot median depth for a study
+```{r define plotting function for median depth}
+
+readPerBaseDepthMulti <- function(samples) {
+  lapply(samples, FUN = function(x){
+    readPerBaseDepth(x)
+    }) %>% do.call("rbind",.) %>%
+    group_by(position) %>% 
+    summarise(mean = mean(count), stdev =sd(count), median = median(count)) %>%
+    ungroup()
+}
+      
+plotCoverageAverage <- function(samples, Ribo = FALSE) {
+  #data prep
+  A <- samples
+  {
+  # Read in polyA file coverage file and smooth it
+  PolyA <- readPerBaseDepthMulti(A)
+    
+  #calculate plotting bounds for PolyA
+  mA <- (PolyA %>% filter(position > 10000 & position < 30000) %>%
+          summarise(mean = mean(median)))$mean
+  maxA <- max(PolyA$median)
+  minA = mA - (maxA - mA)
+
+  
+  dats <- mutate(PolyA, method = "PolyA")
+  
+  if(Ribo ==FALSE){
+  mR = 0
+  maxR = 0
+  minR = 0
+  } else{
+    R = paste0(A, "_RiboDep")
+  RiboDep <-readPerBaseDepthMulti(R)
+  mR <- (RiboDep %>% filter(position > 10000 & position < 30000) %>%
+          summarise(mean = mean(median)))$mean
+  maxR <- max(RiboDep$median)
+  minR = mR - (maxR - mR)
+  dats <- rbind(mutate(PolyA, method = "PolyA"), mutate(RiboDep, method = "RiboDep") )
+  }
+  
+  m = log(max(mA, mR)+1,10)
+  max = log(max(maxA, maxR)+1,10)
+  min = log(min(minA,minR)+1,10)
+  
+  }
+  
+
+## actual plot
+{
+  plotA <- dats %>%
+    ggplot(data = ., aes(x = position, y = log(median+1,10), color = method)) +
+    #structural protein regions
+      geom_rect( data = structural_proteins, aes(
+      ymin = rep(0,nrow(structural_proteins)),
+      ymax = rep(Inf),
+      xmin = start,
+      xmax = stop,
+      ), fill = structural_proteins$colors,
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = structural_proteins,
+      aes( x = (stop+start)/2,
+           y = Inf,
+           label = code
+      ),
+      size = 2.5,
+      fontface = "bold",
+      vjust = "inward", hjust = "middle",
+      inherit.aes = FALSE
+    ) + #geom_vline(xintercept = 25294, color = "red", linetype = "longdash") +
+    geom_line() +
+    geom_vline(xintercept = 25133, color = "red") +
+    geom_text(data = TRS_sites, 
+              aes(x = (start+stop)/2, y = rep(Inf,2), label = c("^","^")),
+              inherit.aes = FALSE, vjust = 1) +
+    geom_text(data = TRS_sites, 
+              aes(x = (start+stop)/2, y = rep(Inf,2), label = label),
+              inherit.aes = FALSE, vjust = 2.25, size = 2.5, fontface = "bold") +
+    ##list samples
+    #annotate(geom = "text", x = 10000, y = 0, label = paste0(samples, collapse = ",")) +
+    #geom_smooth(se = FALSE, color = "blue", span = 0.1)+
+    theme_classic() +
+    scale_color_manual(values = c("black","blue")) +
+    scale_x_continuous(breaks = seq(0, 40000, by = 5000)) +
+    labs(y = " Log10 Median Depth", x = "Position") +
+    #scale_y_continuous(expand = expansion(mult = c(0, .1)))
+    theme(plot.margin=grid::unit(c(0,0,0,0), "mm"),
+          panel.grid.major = element_line(color = "grey90", size = 0.5))
+    
+  
+    ann / plotA  + 
+  plot_layout(heights = c(1, 12))
+  
+  }
+  
+  }
+
+```
+
+### plot median depth for high coverage samples
+###### FIGURE 9
+this corresponds to figure 9 of teh publication
+```{r plot median depth compared to subgenomics}
+
+#high coverage
+AbdSamp <- c("17B27A", "19B27A", "2B27A")
+#low coverage
+#AbdSamp <- c("20B27A", "16B27A")
+
+plotCoverageAverage(AbdSamp, Ribo = TRUE)
+ggsave(filename = paste0("../../figures/", "Median_17B27A-19B27A-2B27A", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+
+ggsave(filename = paste0("../../../AAbV_Description_Paper/Virology/Figures/Figure_9.pdf"),
+       device = "pdf", width = 7, height = 4 )
+
+plotCoverageAverage("17B27A", Ribo = TRUE)
+ggsave(filename = paste0("../../figures/", "17B27A", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+plotCoverageAverage("19B27A", Ribo = TRUE)
+ggsave(filename = paste0("../../figures/", "19B27A", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+plotCoverageAverage("2B27A", Ribo = TRUE)
+ggsave(filename = paste0("../../figures/", "2B27A", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+
+
+
+### plot with line at potential complementarity location 25133
+plotCoverageAverage(AbdSamp, Ribo = TRUE) +
+  #coord_cartesian(xlim = c(25000, 26000)) +
+ggsave(filename = paste0("../../figures/", "Median_17B27A-19B27A-2B27A_25133", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+
+plotCoverageAverage(AbdSamp, Ribo = TRUE) +
+  coord_cartesian(xlim = c(25000, 26000))
+ggsave(filename = paste0("../../figures/", "Median_17B27A-19B27A-2B27A_25133_zoomed_in", "_perBaseDepth_plot.tiff"),
+       device = "tiff", width = 7, height = 4 )
+
+
+```
+
+## coverage and splices
+### Define function that plots splice information and coverage in same plot
+```{r define coverage and splices function}
+
+plotCoverageSplice <- function(SAMPLE) {
+  ##get junctiond data
+  {  
+  #junction_files <- list.files(path="../../data/bams/junctions/", pattern="_Aligned.sortedByCoord.out.bam_junctions.txt")
+  junction_file <-
+    paste0(
+      "../../data/junctions/",
+      SAMPLE,
+      "_Aligned.sortedByCoord.out.bam_junctions.txt"
+    )
+  junction_long <-  read.table(
+    file = junction_file,
+    header = TRUE,
+    stringsAsFactors = FALSE,
+    strip.white = TRUE,
+    sep = "\t"
+  ) %>%
+    mutate(., sample = SAMPLE) %>%
+    rename(five_prime = "X5.end", three_prime = "X3.end")
+  }
+  ##get coverage data
+  {  
+  coverag_file <-
+    paste0("../../data/alignment_stats/",
+           SAMPLE,
+           "_Aligned.sortedByCoord.out.bam_perBase_depth.tab")
+  coverage <- read.table(
+    file = coverag_file,
+    header = FALSE,
+    stringsAsFactors = FALSE,
+    sep = "\t"
+  ) %>%
+    rename(region = "V1" ,
+           position = "V2",
+           count = "V3")
+  smooth <- rollapply(coverage %>% select(position,count), 
+                      width = 100, FUN = median, na.rm=TRUE, partial=TRUE) %>%
+    as.data.frame()
+  max <- max(coverage$count)
+  }
+  ##plot
+  {
+  CSplot <- ggplot(data = data.frame(x = c(0, 35946), y = c(0, 0)),
+                   aes(x = x, y = y)) +
+    #structural protein regions
+    geom_rect(
+      data = structural_proteins,
+      aes(
+        ymin = rep(0, nrow(structural_proteins)),
+        ymax = rep(Inf),
+        xmin = start,
+        xmax = stop,
+      ),
+      fill = structural_proteins$colors,
+      alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = structural_proteins,
+      aes(
+        x = (stop + start) / 2,
+        y = Inf,
+        label = code
+      ),
+      size = 2.5,
+      fontface = "bold",
+      vjust = "inward",
+      hjust = "middle",
+      inherit.aes = FALSE
+    ) +
+    #coverage data
+    geom_line(
+      data = smooth,
+      aes(x = position, 
+          y = count),
+      color = "black",
+      inherit.aes = FALSE
+    ) +
+    #splice data
+    geom_histogram(
+      data = junction_long,
+      aes(x = five_prime),
+      binwidth = 100,
+      position = "stack",
+      fill = "red",
+      inherit.aes = FALSE
+    ) +
+    geom_histogram(
+      data = junction_long,
+      aes(x = three_prime),
+      binwidth = 100,
+      position = "stack",
+      fill = "blue",
+      inherit.aes = FALSE
+    ) +
+    geom_curve(
+      data = junction_long %>%
+        group_by(five_prime, three_prime) %>%
+        summarise(count = n()) %>%
+        ungroup() %>%
+        mutate(read_name = paste0(five_prime, "-", three_prime)) %>%
+        filter(count >= 2),
+      aes(
+        x = five_prime,
+        y = 0,
+        xend = three_prime,
+        yend = 0,
+        group = read_name,
+      ),
+      color = "black",
+      size = 0.1,
+      #alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    geom_curve(
+      data = junction_long %>%
+        group_by(five_prime, three_prime) %>%
+        summarise(count = n()) %>%
+        ungroup() %>%
+        mutate(read_name = paste0(five_prime, "-", three_prime)) %>%
+        slice_max(count, n = 10),
+      aes(
+        x = five_prime,
+        y = 0,
+        xend = three_prime,
+        yend = 0,
+        group = read_name,
+      ),
+      color = "red",
+      size = 0.1,
+      #alpha = 0.5,
+      inherit.aes = FALSE
+    ) +
+    #plot themes
+    theme_bw() +
+    labs(y = "Depth", x = "Position") +
+      coord_cartesian(ylim = c(-max,max)) +
+      scale_y_continuous(breaks = seq(0,max,1000)) +
+      annotate("text", x = 30000, y =-max, label = SAMPLE) +
+    theme(plot.margin = grid::unit(c(0, 0, 0, 0), "mm"))
+  
+  ann / CSplot  +
+    plot_layout(heights = c(1, 10))
+  }
+}
+```
+### plot combined coverage and splicing data
+Due to scale mismatch and difficulty of reading these plots, they weren't used. But they do show a correlation between dead depth and areas of concentrated splicing (5' and 3' splice peaks correspond to covberage peaks). This may suggest random 5' to 3' splices are common and represent non-functional genomes comprising the 5' head region and 3' S proteins and UTRs that stabilize RNA. s
+```{r plot coverage and splices function}
+
+plotCoverageSplice(SAMPLE = "17B27A_RiboDep")
+plotCoverageSplice(SAMPLE = "17B27A")
+
+plotCoverageSplice(SAMPLE = "2B27A_RiboDep")
+
+plotCoverageSplice(SAMPLE = "19B27A_RiboDep")
+
+plotCoverageSplice(SAMPLE = "19B27A")
+
+plotCoverageSplice(SAMPLE = "SRR6871215")
+
+plotCoverageSplice(SAMPLE = "SRR12061222")
+
+
+    
+  coverage <- read.table(
+    file = paste0("../../data/alignment_stats/",
+           "16B27A_RiboDep",
+           "_Aligned.sortedByCoord.out.bam_perBase_depth.tab"),
+    header = FALSE,
+    stringsAsFactors = FALSE,
+    sep = "\t" )
+
+
+```
+
+
+## Other
+
+### Look at bam pileup files to look for single nucleotide leader
+No evidence of single nucleotide leader was identified
+```{r nucleotides around body site that would suggest 1 nuc leader like in Planaria}
+
+# s <- "aababacababaaathhhhhslsls jsjsjjsaa ghhaalll"
+# p <- "a"
+# s2 <- gsub(p,"",s)
+# numOcc <- nchar(s) - nchar(s2)
+
+
+pileup_files <- list.files(path = "../../data/bams/",pattern="_Aligned.sortedByCoord.out.bam.pup")
+#length(coverage_files)
+empty = pileup_files[file.size(list.files(path="../../data/bams/", pattern="_Aligned.sortedByCoord.out.bam.pup",full.names = TRUE)) == 0L]
+pileup_files <- pileup_files[! pileup_files %in% empty]
+
+#samples <- lapply(X = pileup_files, FUN = function(x){str_split(x, pattern = "_")[[1]][1]}) %>% unlist %>% unique
+
+samples <- lapply(X = pileup_files, FUN = function(x){str_remove(x, pattern = "_Aligned.sortedByCoord.out.bam.pup")}) %>% unlist %>% unique
+
+#samples <- samples[str_detect(samples, "SRR6871")] %>% unlist()
+samples <- samples[str_detect(samples, "A_RiboDep")] %>% unlist()
+#samples <- c("SRR6871214")
+#samples <- (meta_mod %>% filter(SRAStudy == "Schmale_RiboDep_A"))$Run
+
+lapply(samples, FUN = function(x){
+  ifelse(file.exists(paste0("../../data/bams/",x,"_Aligned.sortedByCoord.out.bam.pup")),
+  rev <- read.table(file = paste0("../../data/bams/",x,"_Aligned.sortedByCoord.out.bam.pup"), 
+             header = FALSE,
+             stringsAsFactors = FALSE,
+             sep = "\t"
+             ) %>% 
+    rename( chromosome = "V1" , position = "V2", count = "V4", 
+            reference = "V3", Seq ="V5", quality = "V6") %>%
+    mutate(SeqLen = nchar(Seq)) %>%
+    mutate(Skip = SeqLen - nchar(gsub("[<>]","",Seq)))%>%
+    mutate(propSkip = Skip/SeqLen) %>%
+    mutate(Seq = gsub(x = Seq, pattern = "[<>]", replacement = "")) %>%
+    mutate(Seq = str_replace_all(string = Seq, pattern = "[.,]", replacement = reference)) %>%
+    mutate(SeqLen = nchar(Seq)) %>%
+    mutate(A = SeqLen - nchar(gsub("[aA]","",Seq)))%>%
+    mutate(C = SeqLen - nchar(gsub("[cC]","",Seq))) %>%
+    mutate(G = SeqLen - nchar(gsub("[gG]","",Seq)))%>%
+    mutate(`T` = SeqLen - nchar(gsub("[tT]","",Seq)))%>%
+    mutate(propA = A/SeqLen) %>%
+    mutate(propC = C/SeqLen) %>%
+    mutate(propG = G/SeqLen) %>%
+    mutate(propT = `T`/SeqLen)  ,
+  rev <- data.frame(chromosome = "", position = "", count = "", 
+            reference = "", Seq ="", quality = "")
+  )
+  rev <- rev %>% filter(position >= 25259 & position <= 25274) 
+  if( nrow(rev) < 1) { return() }
+  
+  rev %>%
+    pivot_longer(data = ., cols = c("C", "G", "T", "A"), names_to = "nuc", values_to = "prop") %>%
+    ggplot(., aes(x = position, y =prop, fill = nuc)) +
+      geom_bar(stat = "identity", position = "stack") +
+    labs( title = x) +
+    annotate(geom = "text", x = seq(25259,25274,1), y = 0, 
+             label = c("A","A","|T|","T","T","C","|G|","A","A","A","G","T","T","|A|","G","G"))
+}
+)
+
+lapply(c(samples), FUN = function(x){
+  ifelse(file.exists(paste0("../../data/bams/",x,"_Aligned.sortedByCoord.out.bam.pup")),
+rev <- read.table(file = paste0("../../data/bams/",x,"_Aligned.sortedByCoord.out.bam.pup"),
+             header = FALSE,
+             stringsAsFactors = FALSE,
+             sep = "\t"
+             ) %>%
+    rename( chromosome = "V1" , position = "V2", count = "V4",
+            reference = "V3", Seq ="V5", quality = "V6") %>%
+    mutate(Seq = gsub(x = Seq, pattern = "[<>]", replacement = "")) %>%
+  mutate(poly = str_replace_all(string = Seq, pattern = "[.,]", replacement = "")) %>%
+    mutate(Seq = str_replace_all(string = Seq, pattern = "[.,]", replacement = reference)) %>%
+  mutate(SeqLen = nchar(Seq)) %>%
+  mutate(PolyLen = nchar(poly)) %>%
+  mutate(polyrate = PolyLen/SeqLen * 100),
+  rev <- data.frame(chromosome = "", position = "", count = "",
+            reference = "", Seq ="", quality = "")
+  )
+  rev <- rev %>% filter(position >= 25259 & position <= 25274) 
+  if( nrow(rev) < 1) { return() }
+  rev %>% filter(position >= 25259 & position <= 25274) %>%
+    filter(PolyLen > 0) %>%
+    mutate(sample = x) %>%
+    select(sample, position, reference,poly, SeqLen, PolyLen)
+}
+)
+
+# 25259-AATTTCGAAAGTTAGG-25274
+# #AA|T|TTC|G|AAAGTT|A|GG
+
+
+```
+
+### print out R session for reproducibility
+```{r environment printout}
+sessionInfo() %>% write_lines(., file = "../../results/R_session.txt")
+
+meta %>%
+  inner_join(., processing_stats %>% rename(Run = "Sample")) %>%
+  inner_join(viral_reads_stats) %>%
+  write.csv(., "../../results/all_procss_and_meta.csv")
+```
+

@@ -1,0 +1,19 @@
+##gff-version 3
+#!gff-spec-version 1.21
+#!processor NCBI annotwriter
+#!genome-build ASM413328v1
+#!genome-build-accession NCBI_Assembly:GCF_004133285.1 with 42 base leader added
+##sequence-region NC_040711.1 1 35948
+##species https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2283236
+NC_040711.1	RefSeq	region	1	35948	.	+	.	ID=NC_040711.1:1..35906;Dbxref=taxon:2283236;collection-date=04-Jun-2011;country=USA;gbkey=Src;genome=genomic;isolate=EK;mol_type=genomic RNA
+NC_040711.1	RefSeq	five_prime_UTR	1	109	.	+	.	ID=id-NC_040711.1:1..67;gbkey=5'UTR
+NC_040711.1	RefSeq	gene	110	25240	.	+	.	ID=gene-EXK66_gp1;Dbxref=GeneID:41702482;Name=EXK66_gp1;gbkey=Gene;gene_biotype=protein_coding;locus_tag=EXK66_gp1
+NC_040711.1	RefSeq	CDS	110	25240	.	+	0	ID=cds-YP_009553214.1;Parent=gene-EXK66_gp1;Dbxref=Genbank:YP_009553214.1,GeneID:41702482;Name=YP_009553214.1;Note=suppression of termination: predicted stop codon readthrough;gbkey=CDS;locus_tag=EXK66_gp1;product=orf1ab;protein_id=YP_009553214.1;transl_except=(pos:17519..17521%2Caa:Other)
+NC_040711.1	RefSeq	sequence_feature	17565	17697	.	+	.	ID=id-EXK66_gp1;Dbxref=GeneID:41702482;Note=estimated free energy: -45.17 kcal/mol;gbkey=misc_feature;locus_tag=EXK66_gp1;product=Pseudoknot
+NC_040711.1	RefSeq	gene	110	17563	.	+	.	ID=gene-EXK66_gp2;Dbxref=GeneID:41702480;Name=EXK66_gp2;gbkey=Gene;gene_biotype=protein_coding;locus_tag=EXK66_gp2
+NC_040711.1	RefSeq	CDS	110	17563	.	+	0	ID=cds-YP_009553215.1;Parent=gene-EXK66_gp2;Dbxref=Genbank:YP_009553215.1,GeneID:41702480;Name=YP_009553215.1;gbkey=CDS;locus_tag=EXK66_gp2;product=orf1a;protein_id=YP_009553215.1
+NC_040711.1	RefSeq	gene	25294	34962	.	+	.	ID=gene-EXK66_gp3;Dbxref=GeneID:41702481;Name=EXK66_gp3;gbkey=Gene;gene_biotype=protein_coding;locus_tag=EXK66_gp3
+NC_040711.1	RefSeq	CDS	25294	34962	.	+	0	ID=cds-YP_009553216.1;Parent=gene-EXK66_gp3;Dbxref=Genbank:YP_009553216.1,GeneID:41702481;Name=YP_009553216.1;gbkey=CDS;locus_tag=EXK66_gp3;product=putative structural polyprotein;protein_id=YP_009553216.1
+NC_040711.1	RefSeq	three_prime_UTR	34960	35948	.	+	.	ID=id-NC_040711.1:34918..35906;gbkey=3'UTR
+NC_040711.1	RefSeq	polyA_site	35924	35924	.	+	.	ID=id-NC_040711.1:35882..35882;gbkey=polyA_site
+###

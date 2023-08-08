@@ -1,0 +1,36 @@
+for file in ./*.bam
+do
+python ~/Desktop/virORF_direct/bin/python/generate_synthetic_transcripts.py -b ${file} -g ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ./junctions/${file}_junctions.txt -o ${file}_intron.fasta
+done
+
+
+
+for file in ./*_junctions.txt
+do
+name=`basename ${file} | sed s/_junctions.txt//g`
+python ~/Desktop/virORF_direct/bin/python/find_trs_sites.py  -r ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ${file} -o ${name}_trs_sites.txt
+done
+
+for file in ./*_junctions.txt
+do
+name=`basename ${file} | sed s/_junctions.txt//g`
+python ~/Desktop/virORF_direct/bin/python/find_trs_lengths.py  -g ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ${file} -o ${name}_trs_lengths.txt
+done
+
+###local
+for file in *_Aligned.sortedByCoord.out.bam
+do
+python ../../scripts/python/generate_synthetic_transcripts.py -b ${file} -g ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ./junctions/${file}_junctions.txt -o ${file}_intron.fasta
+done
+
+for file in *_junctions.txt
+do
+name=`basename ${file} | sed s/_junctions.txt//g`
+python ../../../scripts/python/find_trs_sites.py  -r ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ${file} -o ${name}_trs_sites.txt
+done
+
+for file in ./*_junctions.txt
+do
+name=`basename ${file} | sed s/_junctions.txt//g`
+python ../../../scripts/python/find_trs_lengths.py  -g ~/Desktop/AabV_assemblies/modified_ANV_genome.fasta -j ${file} -o ${name}_trs_lengths.txt
+done

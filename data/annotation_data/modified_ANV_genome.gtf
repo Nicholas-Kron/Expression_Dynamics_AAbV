@@ -1,0 +1,16 @@
+#gtf-version 2.2
+#!genome-build ASM413328v1
+#!genome-build-accession NCBI_Assembly:GCF_004133285.1 with 42 base leader added
+NC_040711.1	RefSeq	gene	110	25240	.	+	.	gene_id "EXK66_gp1"; transcript_id ""; db_xref "GeneID:41702482"; gbkey "Gene"; gene_biotype "protein_coding"; locus_tag "EXK66_gp1";
+NC_040711.1	RefSeq	CDS	110	25237	.	+	0	gene_id "EXK66_gp1"; transcript_id "unassigned_transcript_1"; gbkey "CDS"; locus_tag "EXK66_gp1"; note "suppression of termination: predicted stop codon readthrough"; product "orf1ab"; protein_id "YP_009553214.1"; transl_except "(pos:17519..17521,aa:Other)"; exon_number "1";
+NC_040711.1	RefSeq	start_codon	110	112	.	+	0	gene_id "EXK66_gp1"; transcript_id "unassigned_transcript_1"; gbkey "CDS"; locus_tag "EXK66_gp1"; note "suppression of termination: predicted stop codon readthrough"; product "orf1ab"; protein_id "YP_009553214.1"; transl_except "(pos:17519..17521,aa:Other)"; exon_number "1";
+NC_040711.1	RefSeq	stop_codon	25238	25240	.	+	0	gene_id "EXK66_gp1"; transcript_id "unassigned_transcript_1"; gbkey "CDS"; locus_tag "EXK66_gp1"; note "suppression of termination: predicted stop codon readthrough"; product "orf1ab"; protein_id "YP_009553214.1"; transl_except "(pos:17519..17521,aa:Other)"; exon_number "1";
+NC_040711.1	RefSeq	gene	110	17521	.	+	.	gene_id "EXK66_gp2"; transcript_id ""; db_xref "GeneID:41702480"; gbkey "Gene"; gene_biotype "protein_coding"; locus_tag "EXK66_gp2";
+NC_040711.1	RefSeq	CDS	110	17560	.	+	0	gene_id "EXK66_gp2"; transcript_id "unassigned_transcript_2"; gbkey "CDS"; locus_tag "EXK66_gp2"; product "orf1a"; protein_id "YP_009553215.1"; exon_number "1";
+NC_040711.1	RefSeq	start_codon	110	112	.	+	0	gene_id "EXK66_gp2"; transcript_id "unassigned_transcript_2"; gbkey "CDS"; locus_tag "EXK66_gp2"; product "orf1a"; protein_id "YP_009553215.1"; exon_number "1";
+NC_040711.1	RefSeq	stop_codon	17561	17563	.	+	0	gene_id "EXK66_gp2"; transcript_id "unassigned_transcript_2"; gbkey "CDS"; locus_tag "EXK66_gp2"; product "orf1a"; protein_id "YP_009553215.1"; exon_number "1";
+NC_040711.1	RefSeq	gene	25294	34962	.	+	.	gene_id "EXK66_gp3"; transcript_id ""; db_xref "GeneID:41702481"; gbkey "Gene"; gene_biotype "protein_coding"; locus_tag "EXK66_gp3";
+NC_040711.1	RefSeq	CDS	25294	34959	.	+	0	gene_id "EXK66_gp3"; transcript_id "unassigned_transcript_3"; gbkey "CDS"; locus_tag "EXK66_gp3"; product "putative structural polyprotein"; protein_id "YP_009553216.1"; exon_number "1";
+NC_040711.1	RefSeq	start_codon	25294	25296	.	+	0	gene_id "EXK66_gp3"; transcript_id "unassigned_transcript_3"; gbkey "CDS"; locus_tag "EXK66_gp3"; product "putative structural polyprotein"; protein_id "YP_009553216.1"; exon_number "1";
+NC_040711.1	RefSeq	stop_codon	34960	34962	.	+	0	gene_id "EXK66_gp3"; transcript_id "unassigned_transcript_3"; gbkey "CDS"; locus_tag "EXK66_gp3"; product "putative structural polyprotein"; protein_id "YP_009553216.1"; exon_number "1";
+###
