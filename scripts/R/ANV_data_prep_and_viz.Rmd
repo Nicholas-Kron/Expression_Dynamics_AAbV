@@ -427,11 +427,11 @@ viral_reads_stats %>%
   filter(SRAStudy == "SRP009481") %>%
   arrange(organ) %>%    
   mutate(Run=factor(Run, levels=unique(Run))) %>% 
-  ggplot(data =., aes(x = Run, y = log(CPM +1, 10), fill = organ)) +
+  ggplot(data =., aes(x = reorder(Run,CPM), y = log(CPM +1, 10), fill = organ)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0.1)) +
-  labs(y = "Log10 vCPM+1")
+  labs(y = "Log10 vCPM+1",x = "Run")
 ggsave("../../figures/SRP009481_tissue_type_viral_load.pdf", device = "pdf",dpi = 300, width = 7.5, height = 4)
 
 
@@ -507,13 +507,13 @@ This corresponds to Figure 3 in the publication
   mutate(CPM = ( (STAR_Uniquely_Mapped + STAR_Multi_Mapped) /STAR_Input) * 1000000) %>%
   arrange(tissue_name) %>%
   mutate(Run = factor(Run, levels = (unique(Run)))) %>%
-  ggplot(data =., aes(x = Run, y = log(CPM+1, 10), fill = tissue_name, shape = sample_subtype)) +
+  ggplot(data =., aes(x = reorder(Run,CPM), y = log(CPM+1, 10), fill = tissue_name, shape = sample_subtype)) +
   geom_bar(stat = "identity") +
   geom_point(size = 2)+
   theme_classic() +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust=0, size = 8),
         legend.key.size = unit(0.5, 'cm'),) +
-  labs(y = "Log10 vCPM+1", fill = "Neuron Type", shape = "Cell Number") +
+  labs(y = "Log10 vCPM+1", x= "Run", fill = "Neuron Type", shape = "Cell Number") +
   facet_wrap(facets = "SRAStudy", scales = "free")+
     scale_y_continuous(expand = expansion(mult = c(0, .1)))
 ggsave("../../figures/SRP000986_and_SRP007385_neuron_types_viral_load.pdf", device = "pdf",dpi = 300, width = 7, height = 4.5)
@@ -1813,6 +1813,94 @@ junction_long_mod_top %>%
 
 ```
 
+####look at fwd or rev bias on splices
+
+```{r, fig.width = 5, fig.height=7}
+
+splice_fwd_rev <- read.delim(file = "../../data/alignment_stats/splices_fwd_rev.txt", sep = "\t", header = TRUE) %>%
+  mutate(
+    Total_splice_prop = Total_splice/Total,
+    Forward_splice_prop = Forward_splice/Forward,
+    Reverse_splice_prop = Reverse_splice/Reverse
+  ) %>% inner_join(meta_mod %>% select(Run, SRAStudy)) %>%
+  inner_join(viral_reads_stats %>% select(Run, CPM)) %>%
+  filter(SRAStudy %in% c(c("SRP268155","SRP136115",
+                     "Schmale_PolyA_Gill",
+                     "Schmale_PolyA_Abdominal",
+                     "Schmale_RiboDep_A",
+                     "Schmale_RiboDep_L")) ) %>%
+  mutate(SRAStudy =
+           case_when(
+             SRAStudy == "Schmale_PolyA_Gill" ~ "PolyA_L",
+             SRAStudy == "Schmale_PolyA_Abdominal" ~ "PolyA_A",
+             SRAStudy == "Schmale_RiboDep_A" ~ "RiboDep_A",
+             SRAStudy == "Schmale_RiboDep_L" ~ "RiboDep_L",
+             TRUE ~ SRAStudy
+           ))
+
+splice_fwd_rev %>% pivot_longer(cols = c(Forward_splice_prop, Reverse_splice_prop),
+                                names_to = "orientation",
+                                values_to = "prop") %>%
+  arrange(CPM) %>%
+  mutate(Run = factor(Run, levels = unique(Run))) %>%
+  ggplot(data =., aes(x = Run, y = prop, fill = orientation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~SRAStudy, scales = "free") +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))  +
+  scale_fill_manual(labels = c("Negative","Positive"), values = c(1,2)) +
+  labs(y = "Proportion of Reads", x = "Viral Load (CPM)", color = "Strand")
+
+splice_fwd_rev %>% pivot_longer(cols = c(Forward_splice, Reverse_splice),
+                                names_to = "orientation",
+                                values_to = "prop") %>%
+  arrange(CPM) %>%
+  mutate(Run = factor(Run, levels = unique(Run))) %>%
+  ggplot(data =., aes(x = Run, y = prop, fill = orientation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~SRAStudy, scales = "free") +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_fill_manual(labels = c("Negative","Positive"), values = c(1,2)) +
+  labs(y = "Number of Reads", x = "Viral Load (CPM)", color = "Strand")
+
+prop <- splice_fwd_rev %>% pivot_longer(cols = c(Forward_splice_prop, Reverse_splice_prop),
+                                names_to = "orientation",
+                                values_to = "prop") %>%
+  arrange(CPM) %>%
+  mutate(Run = factor(Run, levels = unique(Run))) %>%
+  ggplot(data =., aes(x = CPM, y = prop, color = orientation)) +
+  geom_point() +
+  facet_wrap(~SRAStudy, scales = "free") +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        legend.position = "none") +
+  scale_color_manual(labels = c("Negative","Positive"), values = c(1,2)) +
+  labs(y = "Proportion of Reads", x = "Viral Load (CPM)", color = "Strand") 
+
+
+num <- splice_fwd_rev %>% pivot_longer(cols = c(Forward_splice, Reverse_splice),
+                                names_to = "orientation",
+                                values_to = "prop") %>%
+  arrange(CPM) %>%
+  mutate(Run = factor(Run, levels = unique(Run))) %>%
+  ggplot(data =., aes(x = CPM, y = prop, color = orientation)) +
+  geom_point() +
+  facet_wrap(~SRAStudy, scales = "free") +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        axis.title.x = element_blank(), 
+        legend.position = "top") +
+  scale_color_manual(labels = c("Negative","Positive"), values = c(1,2)) +
+  labs(y = "Number of Reads", x = "Viral Load (CPM)", color = "Strand")
+
+p <- cowplot::plot_grid(plotlist = list(num,prop), labels = c("A","B"), ncol = 1)
+cowplot::save_plot(plot = p, filename = "../../figures/spliced_strand_plot.pdf",base_width = 7, base_height = 7)
+
+```
+
 
 ### TRS site analysis
 try to find canonical TRS sequence using TRS seeds from virORF
@@ -2519,4 +2607,5 @@ meta %>%
   inner_join(viral_reads_stats) %>%
   write.csv(., "../../results/all_procss_and_meta.csv")
 ```
+
 
